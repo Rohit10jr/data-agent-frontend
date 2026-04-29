@@ -1,0 +1,94 @@
+# ── Dependencies ───────────────────────────────────────────────────
+node_modules/
+shared/node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ── Build output ───────────────────────────────────────────────────
+dist/
+build/
+out/
+.output/
+.vercel/
+.netlify/
+
+# ── Vite ───────────────────────────────────────────────────────────
+.vite/
+*.local
+
+# ── TanStack ───────────────────────────────────────────────────────
+.tanstack/
+# NOTE: src/routeTree.gen.ts is auto-generated but commit it by default
+# (matches TanStack Router's official templates). Uncomment to ignore:
+# src/routeTree.gen.ts
+
+# ── TypeScript ─────────────────────────────────────────────────────
+*.tsbuildinfo
+.tscache/
+
+# ── Test / coverage ────────────────────────────────────────────────
+coverage/
+*.lcov
+.nyc_output/
+.vitest-cache/
+
+# ── Linters / formatters ───────────────────────────────────────────
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# ── Environment ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+# keep templates:
+!.env.example
+!.env.template
+
+# ── Logs ───────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+bun-debug.log*
+
+# ── Editor / IDE ───────────────────────────────────────────────────
+# Keep shared VS Code settings, ignore personal/local ones
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.vscode-test
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# ── OS junk ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Misc ───────────────────────────────────────────────────────────
+.cache/
+*.pid
+*.seed
+*.pid.lock

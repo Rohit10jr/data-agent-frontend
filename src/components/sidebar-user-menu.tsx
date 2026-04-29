@@ -1,0 +1,46 @@
+import { Link } from '@tanstack/react-router';
+import { Avatar } from './ui/avatar';
+
+import { cn, hideIf } from '@/lib/utils';
+import { useSession } from '@/lib/auth-client';
+
+interface SidebarUserMenuProps {
+	isCollapsed: boolean;
+}
+
+export function SidebarUserMenu({ isCollapsed }: SidebarUserMenuProps) {
+	const { data: session } = useSession();
+	const username = session?.user?.name;
+	const email = session?.user?.email;
+
+	return (
+		<Link
+			to='/settings'
+			inactiveProps={{
+				className: cn('text-foreground hover:bg-sidebar-accent'),
+			}}
+			activeProps={{
+				className: cn('text-foreground bg-sidebar-accent'),
+			}}
+			className={cn(
+				'flex items-center justify-between border-sidebar-border cursor-pointer rounded-lg',
+				'hover:bg-sidebar-accent transition-[background-color,padding] duration-300',
+				isCollapsed ? 'p-1.5' : 'p-3 py-2',
+			)}
+		>
+			<div className='flex items-center gap-2 min-w-0'>
+				{username && <Avatar username={username} className='shrink-0' />}
+
+				<span
+					className={cn(
+						'flex flex-col justify-center text-left transition-[opacity,visibility] h-8 duration-300 min-w-0',
+						hideIf(isCollapsed),
+					)}
+				>
+					<span className='text-sm leading-4 font-medium truncate'>{username}</span>
+					<span className='text-xs text-muted-foreground truncate'>{email}</span>
+				</span>
+			</div>
+		</Link>
+	);
+}
