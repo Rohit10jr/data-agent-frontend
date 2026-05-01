@@ -1,167 +1,190 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute, useRouter } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { Folder, GitFork, Globe, Upload } from 'lucide-react';
-import type { ForkMetadata } from '@nao/backend/chat';
-import { StoryOpenButton } from '@/components/story-open-button';
-import { StoryViewer } from '@/components/side-panel/story-viewer';
-import { ChatInput } from '@/components/chat-input';
-import { ChatMessages } from '@/components/chat-messages/chat-messages';
-import { SidePanel } from '@/components/side-panel/side-panel';
-import { MobileHeader } from '@/components/mobile-header';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { ChevronRight, User, Bot, Database, Wrench } from 'lucide-react';
+import { useChatStream } from '@/queries/use-chat-stream';
+import type { HistoryPart, HistoryMessage } from '@/queries/use-chat-history-query';
 import { Spinner } from '@/components/ui/spinner';
-import { useAgentContext } from '@/contexts/agent.provider';
-import { useSidePanel } from '@/hooks/use-side-panel';
-import { SidePanelProvider } from '@/contexts/side-panel';
-import { EditableChatTitle } from '@/components/editable-chat-title';
-import { useChatQuery } from '@/queries/use-chat-query';
-import { ShareChatDialog } from '@/components/share-dialog.chat';
-import { trpc } from '@/main';
+import { ChatComposer } from '@/components/chat-composer';
+import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/_sidebar-layout/_chat-layout/$chatId')({
-	component: RouteComponent,
+	component: ChatDetailPage,
 });
 
-export function RouteComponent() {
-	const { isLoadingMessages, isRunning } = useAgentContext();
-	const router = useRouter();
+function ChatDetailPage() {
 	const { chatId } = Route.useParams();
-	const chat = useChatQuery({ chatId });
-	const title = chat.data?.title;
-	const shareQuery = useQuery(trpc.sharedChat.getShareOptionsByChatId.queryOptions({ chatId: chatId ?? '' }));
-	const isShared = !!shareQuery.data?.shareId;
-	const projects = useQuery(trpc.project.listForCurrentUser.queryOptions());
-	const hasMultipleProjects = (projects.data?.length ?? 0) > 1;
-	const chatProject = hasMultipleProjects ? projects.data?.find((p) => p.id === chat.data?.projectId) : undefined;
+	const { messages, sendMessage, abort, isStreaming, isLoading, error, streamError } = useChatStream({
+		threadId: chatId,
+	});
 
-	const containerRef = useRef<HTMLDivElement>(null);
-	const sidePanelRef = useRef<HTMLDivElement>(null);
-
-	const sidePanel = useSidePanel({ containerRef, sidePanelRef });
-	const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-
-	const isSelectionFork =
-		chat.data?.forkMetadata?.type === 'chat_selection' || chat.data?.forkMetadata?.type === 'story_selection';
-	const headerCitation = buildHeaderCitation(isSelectionFork ? chat.data?.forkMetadata : undefined);
-
+	// Auto-scroll to bottom on new content.
+	const bottomRef = useRef<HTMLDivElement>(null);
 	useEffect(() => {
-		const openStorySlug = router.state.location.state.openStorySlug;
-		if (!openStorySlug || isLoadingMessages) {
-			return;
-		}
+		bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+	}, [messages]);
 
-		sidePanel.open(<StoryViewer chatId={chatId} storySlug={openStorySlug} />, openStorySlug);
+	if (isLoading) {
+		return (
+			<div className='flex-1 flex items-center justify-center'>
+				<Spinner className='size-5' />
+			</div>
+		);
+	}
 
-		const timer = setTimeout(() => {
-			router.history.replace(router.state.location.href, {
-				...router.state.location.state,
-				openStorySlug: undefined,
-			});
-		});
-		return () => clearTimeout(timer);
-	}, [isLoadingMessages]); // eslint-disable-line react-hooks/exhaustive-deps
+	if (error) {
+		return (
+			<div className='flex-1 flex items-center justify-center p-8'>
+				<p className='text-red-500 text-sm'>
+					Failed to load chat: {error instanceof Error ? error.message : 'unknown error'}
+				</p>
+			</div>
+		);
+	}
 
 	return (
-		<SidePanelProvider
-			isVisible={sidePanel.isVisible}
-			currentStorySlug={sidePanel.currentStorySlug}
-			chatId={chatId}
-			open={sidePanel.open}
-			close={sidePanel.close}
-		>
-			<div className='flex-1 flex min-w-0 bg-panel' ref={containerRef}>
-				<div className='flex flex-col h-full flex-1 min-w-0 overflow-hidden justify-center relative'>
-					<MobileHeader chatId={chatId} title={title} />
-
-					<div className='group/header absolute flex items-center justify-between top-3 inset-x-4 z-10 max-md:hidden'>
-						<div className='min-w-0 max-w-[60%] flex flex-row gap-4'>
-							{title && (
-								<EditableChatTitle
-									chatId={chatId}
-									title={title}
-									className='text-sm text-muted-foreground'
-								/>
-							)}
-							{chatProject && (
-								<Badge variant='outline' className='gap-1 text-muted-foreground w-fit'>
-									<Folder />
-									<span className='truncate'>{chatProject.name}</span>
-								</Badge>
-							)}
-							{chat.data?.forkMetadata && (
-								<Badge variant='outline' className='gap-1 text-muted-foreground w-fit'>
-									<GitFork />
-									<span className='truncate'>
-										{chat.data.forkMetadata.type === 'story' ? 'Story' : 'Chat'} thread from{' '}
-									</span>
-									<span className='text-xs text-foreground'>{chat.data.forkMetadata.authorName}</span>
-									{headerCitation && (
-										<span className='truncate'>
-											{' '}
-											— {headerCitation.citation}: &ldquo;{headerCitation.text}&rdquo;
-										</span>
-									)}
-								</Badge>
-							)}
-						</div>
-						<div className='flex items-center gap-2'>
-							<StoryOpenButton variant='ghost' />
-							<Button
-								variant='ghost'
-								size='icon-sm'
-								onClick={() => setIsShareDialogOpen(true)}
-								disabled={isRunning}
-								aria-label='Share Chat'
-							>
-								{!isRunning && isShared ? (
-									<Globe className='size-3 text-emerald-600' />
-								) : (
-									<Upload className='size-3' />
-								)}
-							</Button>
-						</div>
-					</div>
-
-					<div className='absolute inset-x-0 top-0 z-[5] pointer-events-none max-md:hidden'>
-						<div className='h-10 bg-panel' />
-						<div className='h-3 bg-gradient-to-b from-panel to-transparent' />
-					</div>
-
-					{isLoadingMessages ? (
-						<div className='flex flex-1 items-center justify-center'>
-							<Spinner />
-						</div>
+		<div className='flex flex-col flex-1 overflow-hidden'>
+			<div className='flex-1 overflow-y-auto'>
+				<div className='max-w-3xl mx-auto p-6 space-y-6'>
+					{messages.length === 0 ? (
+						<p className='text-sm text-muted-foreground text-center pt-12'>
+							No messages yet. Send one to start the conversation.
+						</p>
 					) : (
-						<ChatMessages />
+						messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
 					)}
-
-					<ChatInput />
+					{streamError && (
+						<p className='text-sm text-red-500 text-center'>Error: {streamError}</p>
+					)}
+					<div ref={bottomRef} />
 				</div>
-
-				{sidePanel.content && (
-					<SidePanel
-						containerRef={containerRef}
-						isAnimating={sidePanel.isAnimating}
-						sidePanelRef={sidePanelRef}
-						resizeHandleRef={sidePanel.resizeHandleRef}
-						onClose={sidePanel.close}
-					>
-						{sidePanel.content}
-					</SidePanel>
-				)}
 			</div>
-			<ShareChatDialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} chatId={chatId} />
-		</SidePanelProvider>
+
+			<ChatComposer
+				onSend={sendMessage}
+				onAbort={abort}
+				isStreaming={isStreaming}
+			/>
+		</div>
 	);
 }
 
-function buildHeaderCitation(meta: ForkMetadata | undefined): { citation: string; text: string } | null {
-	if (!meta?.selectionText) {
-		return null;
+// ── Message bubble ────────────────────────────────────────────────────
+function MessageBubble({ message }: { message: HistoryMessage }) {
+	const isUser = message.role === 'user';
+
+	return (
+		<div className={cn('flex gap-3', isUser ? 'flex-row-reverse' : 'flex-row')}>
+			<div
+				className={cn(
+					'size-8 shrink-0 rounded-full flex items-center justify-center',
+					isUser ? 'bg-primary text-primary-foreground' : 'bg-sidebar-accent',
+				)}
+			>
+				{isUser ? <User className='size-4' /> : <Bot className='size-4' />}
+			</div>
+
+			<div className={cn('flex-1 min-w-0 space-y-2', isUser && 'flex flex-col items-end')}>
+				{message.parts.map((part, i) => (
+					<PartRenderer key={i} part={part} isUser={isUser} />
+				))}
+
+				{message.usage?.total_tokens && !isUser && (
+					<p className='text-xs text-muted-foreground'>
+						{message.usage.input_tokens} in · {message.usage.output_tokens} out ·{' '}
+						{message.usage.total_tokens} tokens
+					</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+// ── Part rendering ────────────────────────────────────────────────────
+function PartRenderer({ part, isUser }: { part: HistoryPart; isUser: boolean }) {
+	switch (part.type) {
+		case 'text':
+			return (
+				<div
+					className={cn(
+						'rounded-lg px-4 py-2 text-sm whitespace-pre-wrap',
+						isUser ? 'bg-primary text-primary-foreground max-w-2xl' : 'bg-sidebar-accent',
+					)}
+				>
+					{part.text}
+				</div>
+			);
+
+		case 'reasoning':
+			return <ReasoningBlock text={part.text} />;
+
+		case 'tool-call':
+			return <ToolCallBlock part={part} />;
+
+		case 'tool-result':
+			return <ToolResultBlock part={part} />;
 	}
-	const text = meta.selectionText.length > 20 ? `${meta.selectionText.slice(0, 20)}\u2026` : meta.selectionText;
-	const citation = `@chars ${meta.selectionStart}–${meta.selectionEnd}`;
-	return { citation, text };
+}
+
+function ReasoningBlock({ text }: { text: string }) {
+	const [open, setOpen] = useState(false);
+	return (
+		<div className='border border-dashed border-border rounded-md text-xs'>
+			<button
+				type='button'
+				onClick={() => setOpen((p) => !p)}
+				className='w-full flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-foreground'
+			>
+				<ChevronRight className={cn('size-3 transition-transform', open && 'rotate-90')} />
+				<span className='italic'>Reasoning</span>
+			</button>
+			{open && (
+				<div className='px-3 pb-2 text-muted-foreground whitespace-pre-wrap'>{text}</div>
+			)}
+		</div>
+	);
+}
+
+function ToolCallBlock({ part }: { part: Extract<HistoryPart, { type: 'tool-call' }> }) {
+	const isSql = part.tool_name === 'run_sql_query';
+	const sql = isSql ? String((part.args as { query?: string }).query ?? '') : '';
+
+	return (
+		<div className='border border-border rounded-md bg-panel'>
+			<div className='flex items-center gap-2 px-3 py-1.5 border-b border-border bg-sidebar-accent text-xs'>
+				{isSql ? <Database className='size-3.5' /> : <Wrench className='size-3.5' />}
+				<span className='font-mono font-medium'>{part.tool_name}</span>
+			</div>
+			{isSql ? (
+				<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>{sql}</pre>
+			) : (
+				<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-muted-foreground'>
+					{JSON.stringify(part.args, null, 2)}
+				</pre>
+			)}
+		</div>
+	);
+}
+
+function ToolResultBlock({ part }: { part: Extract<HistoryPart, { type: 'tool-result' }> }) {
+	const [open, setOpen] = useState(part.tool_name === 'run_sql_query');
+	const content = part.content;
+
+	return (
+		<div className='border border-border rounded-md text-xs'>
+			<button
+				type='button'
+				onClick={() => setOpen((p) => !p)}
+				className='w-full flex items-center gap-2 px-3 py-1.5 hover:bg-sidebar-accent'
+			>
+				<ChevronRight className={cn('size-3 transition-transform', open && 'rotate-90')} />
+				<span className='text-muted-foreground'>Result</span>
+				<span className='font-mono ml-auto truncate text-muted-foreground'>{part.tool_name}</span>
+			</button>
+			{open && (
+				<pre className='px-3 pb-2 font-mono overflow-x-auto whitespace-pre-wrap text-muted-foreground'>
+					{content}
+				</pre>
+			)}
+		</div>
+	);
 }
