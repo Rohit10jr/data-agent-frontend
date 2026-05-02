@@ -288,7 +288,9 @@ function ChatInputBase({
 					/>
 
 					<InputGroupAddon align='block-end'>
-						{(!isTranscribeReady || (!isRecording && !isTranscribing)) && <ChatInputModelSelect />}
+						{/* Model picker disabled for the Django backend. Re-enable once the
+						    backend exposes a multi-provider model registry. */}
+						{/* {(!isTranscribeReady || (!isRecording && !isTranscribing)) && <ChatInputModelSelect />} */}
 
 						{isTranscribeReady && isRecording && <SlidingWaveform analyserRef={analyserRef} />}
 

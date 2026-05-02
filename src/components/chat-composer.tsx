@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConnectionPicker } from '@/components/connection-picker';
 import { cn } from '@/lib/utils';
 
 interface ChatComposerProps {
-	onSend: (text: string) => void | Promise<void>;
+	onSend: (text: string, connectionId?: string) => void | Promise<void>;
 	onAbort?: () => void;
 	isStreaming: boolean;
 	disabled?: boolean;
 	placeholder?: string;
+	/** When true, show the database picker. Use for new chats; existing chats hide it. */
+	showConnectionPicker?: boolean;
 }
 
 export function ChatComposer({
@@ -17,11 +20,12 @@ export function ChatComposer({
 	isStreaming,
 	disabled,
 	placeholder = 'Ask a question about your data…',
+	showConnectionPicker = false,
 }: ChatComposerProps) {
 	const [value, setValue] = useState('');
+	const [connectionId, setConnectionId] = useState<string | undefined>();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-	// Auto-grow the textarea up to a few lines.
 	useEffect(() => {
 		const el = textareaRef.current;
 		if (!el) return;
@@ -29,16 +33,18 @@ export function ChatComposer({
 		el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
 	}, [value]);
 
+	const canSubmit =
+		!!value.trim() && !isStreaming && (!showConnectionPicker || !!connectionId);
+
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!value.trim() || isStreaming) return;
+		if (!canSubmit) return;
 		const toSend = value;
 		setValue('');
-		onSend(toSend);
+		onSend(toSend, connectionId);
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		// Enter sends; Shift+Enter inserts newline.
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			handleSubmit(e);
@@ -66,7 +72,15 @@ export function ChatComposer({
 						'outline-none placeholder:text-muted-foreground',
 					)}
 				/>
-				<div className='flex justify-end px-2 pb-2'>
+				<div className='flex items-center px-2 pb-2 gap-2'>
+					{showConnectionPicker && (
+						<ConnectionPicker
+							value={connectionId}
+							onChange={setConnectionId}
+							disabled={isStreaming}
+						/>
+					)}
+					<div className='flex-1' />
 					{isStreaming ? (
 						<Button
 							type='button'
@@ -78,17 +92,17 @@ export function ChatComposer({
 							<Square className='size-3 fill-current' />
 						</Button>
 					) : (
-						<Button
-							type='submit'
-							size='icon-sm'
-							disabled={disabled || !value.trim()}
-							title='Send'
-						>
+						<Button type='submit' size='icon-sm' disabled={!canSubmit} title='Send'>
 							<ArrowUp className='size-4' />
 						</Button>
 					)}
 				</div>
 			</div>
+			{showConnectionPicker && !connectionId && (
+				<p className='max-w-3xl mx-auto pt-2 text-xs text-center text-muted-foreground'>
+					Select a database to start a conversation.
+				</p>
+			)}
 		</form>
 	);
 }
