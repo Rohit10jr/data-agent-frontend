@@ -18,6 +18,7 @@ interface StreamArgs {
 	threadId?: string;          // omit for new chat
 	connectionId?: string;       // required when threadId is omitted
 	secureData?: boolean;
+	model?: string;              // Groq model id (sql_agent.SUPPORTED_MODELS)
 	signal?: AbortSignal;
 	onEvent: (event: AgentEvent) => void;
 }
@@ -27,6 +28,7 @@ export async function streamSqlAgent({
 	threadId,
 	connectionId,
 	secureData = false,
+	model,
 	signal,
 	onEvent,
 }: StreamArgs): Promise<void> {
@@ -42,6 +44,7 @@ export async function streamSqlAgent({
 			thread_id: threadId,
 			connection_id: connectionId,
 			secure_data: secureData,
+			model,
 		}),
 		signal,
 	});

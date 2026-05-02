@@ -129,7 +129,7 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	);
 
 	const sendMessage = useCallback(
-		async (text: string) => {
+		async (text: string, opts?: { connectionId?: string; model?: string }) => {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
 
@@ -157,6 +157,7 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 				await streamSqlAgent({
 					query: trimmed,
 					threadId,
+					model: opts?.model,
 					signal: controller.signal,
 					onEvent: handleEvent,
 				});

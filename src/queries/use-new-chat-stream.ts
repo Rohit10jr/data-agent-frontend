@@ -166,10 +166,10 @@ export function useNewChatStream() {
 	);
 
 	const sendMessage = useCallback(
-		async (text: string, connectionId?: string) => {
+		async (text: string, opts: { connectionId?: string; model: string }) => {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
-			if (!connectionId) {
+			if (!opts.connectionId) {
 				setStreamError('Pick a database before sending.');
 				return;
 			}
@@ -200,7 +200,8 @@ export function useNewChatStream() {
 			try {
 				await streamSqlAgent({
 					query: trimmed,
-					connectionId,
+					connectionId: opts.connectionId,
+					model: opts.model,
 					signal: controller.signal,
 					onEvent: handleEvent,
 				});

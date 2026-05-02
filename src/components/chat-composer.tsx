@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionPicker } from '@/components/connection-picker';
+import { ModelPicker, DEFAULT_MODEL_ID } from '@/components/model-picker';
 import { cn } from '@/lib/utils';
 
 interface ChatComposerProps {
-	onSend: (text: string, connectionId?: string) => void | Promise<void>;
+	onSend: (text: string, opts: { connectionId?: string; model: string }) => void | Promise<void>;
 	onAbort?: () => void;
 	isStreaming: boolean;
 	disabled?: boolean;
@@ -24,6 +25,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
 	const [value, setValue] = useState('');
 	const [connectionId, setConnectionId] = useState<string | undefined>();
+	const [model, setModel] = useState<string>(DEFAULT_MODEL_ID);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	useEffect(() => {
@@ -41,7 +43,7 @@ export function ChatComposer({
 		if (!canSubmit) return;
 		const toSend = value;
 		setValue('');
-		onSend(toSend, connectionId);
+		onSend(toSend, { connectionId, model });
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -72,7 +74,7 @@ export function ChatComposer({
 						'outline-none placeholder:text-muted-foreground',
 					)}
 				/>
-				<div className='flex items-center px-2 pb-2 gap-2'>
+				<div className='flex items-center px-2 pb-2 gap-2 flex-wrap'>
 					{showConnectionPicker && (
 						<ConnectionPicker
 							value={connectionId}
@@ -80,6 +82,7 @@ export function ChatComposer({
 							disabled={isStreaming}
 						/>
 					)}
+					<ModelPicker value={model} onChange={setModel} disabled={isStreaming} />
 					<div className='flex-1' />
 					{isStreaming ? (
 						<Button
