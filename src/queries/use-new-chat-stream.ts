@@ -33,6 +33,9 @@ export function useNewChatStream() {
 	const [streamError, setStreamError] = useState<string | undefined>();
 	const abortRef = useRef<AbortController | null>(null);
 	const threadIdRef = useRef<string | null>(null);
+	// Captured copy of the current user message so the `thread_created` handler
+	// can seed the cache with it without depending on stale state in the closure.
+	const liveUserRef = useRef<HistoryMessage | null>(null);
 
 	const messages = useMemo<HistoryMessage[]>(() => {
 		const out: HistoryMessage[] = [];
@@ -59,11 +62,15 @@ export function useNewChatStream() {
 						};
 						return { ...prev, chats: [newChat, ...prev.chats] };
 					});
-					// Seed the chat-history cache so the detail page renders the live
-					// stream immediately after navigation (no flash of empty history).
+					// Seed the chat-history cache with the user's message so the detail
+					// page shows it immediately on mount — no "No messages yet" flash
+					// while we wait for the agent to start responding.
 					qc.setQueryData<ChatHistoryResponse>(
 						chatHistoryQueryKey(event.thread_id),
-						{ thread_id: event.thread_id, messages: [] },
+						{
+							thread_id: event.thread_id,
+							messages: liveUserRef.current ? [liveUserRef.current] : [],
+						},
 					);
 					navigate({ to: '/$chatId', params: { chatId: event.thread_id } });
 					break;
@@ -162,13 +169,15 @@ export function useNewChatStream() {
 
 			setStreamError(undefined);
 			threadIdRef.current = null;
-			setLiveUser({
+			const userMessage: HistoryMessage = {
 				id: `live-user-${Date.now()}`,
 				role: 'user',
 				parts: [{ type: 'text', text: trimmed }],
 				usage: null,
 				created_at: null,
-			});
+			};
+			liveUserRef.current = userMessage;
+			setLiveUser(userMessage);
 			setLiveAssistant({
 				id: `live-asst-${Date.now()}`,
 				role: 'assistant',
