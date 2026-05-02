@@ -24,6 +24,34 @@ export const MODELS: ModelOption[] = [
 
 export const DEFAULT_MODEL_ID = MODELS[0].id;
 
+// ── localStorage persistence ──────────────────────────────────────────
+// Model choice is treated as a personal preference (like ChatGPT's model
+// switcher), so it persists across navigations and reloads. Validates against
+// the known list before restoring — guards against stale ids if a model is
+// removed from MODELS.
+
+const MODEL_STORAGE_KEY = 'chat.model';
+
+export function getInitialModel(): string {
+	try {
+		const stored = localStorage.getItem(MODEL_STORAGE_KEY);
+		if (stored && MODELS.some((m) => m.id === stored)) {
+			return stored;
+		}
+	} catch {
+		// localStorage unavailable (private mode, etc.) — fall through to default.
+	}
+	return DEFAULT_MODEL_ID;
+}
+
+export function persistModel(modelId: string): void {
+	try {
+		localStorage.setItem(MODEL_STORAGE_KEY, modelId);
+	} catch {
+		// ignore
+	}
+}
+
 interface ModelPickerProps {
 	value: string;
 	onChange: (modelId: string) => void;

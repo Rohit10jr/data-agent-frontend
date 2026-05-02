@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionPicker } from '@/components/connection-picker';
-import { ModelPicker, DEFAULT_MODEL_ID } from '@/components/model-picker';
+import { ModelPicker, getInitialModel, persistModel } from '@/components/model-picker';
 import { cn } from '@/lib/utils';
 
 interface ChatComposerProps {
@@ -25,7 +25,13 @@ export function ChatComposer({
 }: ChatComposerProps) {
 	const [value, setValue] = useState('');
 	const [connectionId, setConnectionId] = useState<string | undefined>();
-	const [model, setModel] = useState<string>(DEFAULT_MODEL_ID);
+	// Model is persisted in localStorage so it survives navigations + reloads
+	// (e.g., picking on the home page → being on the new chat page).
+	const [model, setModelState] = useState<string>(() => getInitialModel());
+	const setModel = (next: string) => {
+		setModelState(next);
+		persistModel(next);
+	};
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	useEffect(() => {
