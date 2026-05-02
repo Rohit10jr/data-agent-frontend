@@ -84,9 +84,11 @@ function MessageBubble({ message }: { message: HistoryMessage }) {
 			</div>
 
 			<div className={cn('flex-1 min-w-0 space-y-2', isUser && 'flex flex-col items-end')}>
-				{message.parts.map((part, i) => (
-					<PartRenderer key={i} part={part} isUser={isUser} />
-				))}
+				{message.parts.length === 0 && !isUser ? (
+					<ThinkingIndicator />
+				) : (
+					message.parts.map((part, i) => <PartRenderer key={i} part={part} isUser={isUser} />)
+				)}
 
 				{message.usage?.total_tokens && !isUser && (
 					<p className='text-xs text-muted-foreground'>
@@ -161,6 +163,23 @@ function ToolCallBlock({ part }: { part: Extract<HistoryPart, { type: 'tool-call
 					{JSON.stringify(part.args, null, 2)}
 				</pre>
 			)}
+		</div>
+	);
+}
+
+function ThinkingIndicator() {
+	return (
+		<div
+			className='inline-flex items-center gap-2 rounded-lg bg-sidebar-accent px-4 py-2.5 text-sm text-muted-foreground'
+			role='status'
+			aria-live='polite'
+		>
+			<span>Thinking</span>
+			<span className='inline-flex items-center gap-0.5'>
+				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]' />
+				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]' />
+				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce' />
+			</span>
 		</div>
 	);
 }

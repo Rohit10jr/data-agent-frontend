@@ -62,15 +62,22 @@ export function useNewChatStream() {
 						};
 						return { ...prev, chats: [newChat, ...prev.chats] };
 					});
-					// Seed the chat-history cache with the user's message so the detail
-					// page shows it immediately on mount — no "No messages yet" flash
-					// while we wait for the agent to start responding.
+					// Seed the chat-history cache with the user's message AND an empty
+					// assistant placeholder so the detail page mounts showing both
+					// bubbles immediately (the assistant bubble renders a thinking
+					// indicator while we wait for tokens).
+					const seedMessages: HistoryMessage[] = [];
+					if (liveUserRef.current) seedMessages.push(liveUserRef.current);
+					seedMessages.push({
+						id: `pending-asst-${event.thread_id}`,
+						role: 'assistant',
+						parts: [],
+						usage: null,
+						created_at: null,
+					});
 					qc.setQueryData<ChatHistoryResponse>(
 						chatHistoryQueryKey(event.thread_id),
-						{
-							thread_id: event.thread_id,
-							messages: liveUserRef.current ? [liveUserRef.current] : [],
-						},
+						{ thread_id: event.thread_id, messages: seedMessages },
 					);
 					navigate({ to: '/$chatId', params: { chatId: event.thread_id } });
 					break;
