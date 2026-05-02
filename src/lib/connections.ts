@@ -50,6 +50,34 @@ export const connectionsApi = {
 		return res.data;
 	},
 
+	createFromFile: async (input: {
+		file: File;
+		type: 'sqlite' | 'csv' | 'excel' | 'sas7bdat';
+		name: string;
+	}): Promise<Connection> => {
+		const form = new FormData();
+		form.append('file', input.file);
+		form.append('type', input.type);
+		form.append('name', input.name);
+
+		// Bypass the JSON-only `api` wrapper because we need multipart upload.
+		const { tokens } = await import('./tokens');
+		const access = tokens.getAccess();
+		const res = await fetch('/api/connect/file/', {
+			method: 'POST',
+			headers: access ? { Authorization: `Bearer ${access}` } : undefined,
+			body: form,
+		});
+		if (!res.ok) {
+			const errBody = await res.json().catch(() => null);
+			throw new Error(
+				(errBody as { error?: string })?.error ?? `Upload failed (${res.status})`,
+			);
+		}
+		const body = (await res.json()) as DjangoListResponse<Connection>;
+		return body.data;
+	},
+
 	update: async (
 		id: string,
 		patch: { name?: string; dsn?: string; options?: ConnectionOptions },
