@@ -32,34 +32,34 @@ const settingsNavItems: NavItem[] = [
 		label: 'Account',
 		to: '/settings/account',
 	},
-	{
-		label: 'Organization',
-		to: '/settings/organization',
-	},
-	{
-		label: 'Project',
-		to: '/settings/project',
-	},
+	// Organization & Project — hidden until multi-tenant support is built.
+	// {
+	// 	label: 'Organization',
+	// 	to: '/settings/organization',
+	// },
+	// {
+	// 	label: 'Project',
+	// 	to: '/settings/project',
+	// },
 	{
 		label: 'Observability',
 		type: 'divider',
-		visible: ({ isAdmin }) => isAdmin,
 	},
 	{
 		label: 'Usage & costs',
 		to: '/settings/usage',
-		visible: ({ isAdmin }) => isAdmin,
 	},
-	{
-		label: 'Chats Replay',
-		to: '/settings/chats-replay',
-		visible: ({ isAdmin }) => isAdmin,
-	},
-	{
-		label: 'Logs',
-		to: '/settings/logs',
-		visible: ({ isAdmin, isCloud }) => isAdmin && !isCloud,
-	},
+	// Admin-only nao features hidden until we build them.
+	// {
+	// 	label: 'Chats Replay',
+	// 	to: '/settings/chats-replay',
+	// 	visible: ({ isAdmin }) => isAdmin,
+	// },
+	// {
+	// 	label: 'Logs',
+	// 	to: '/settings/logs',
+	// 	visible: ({ isAdmin, isCloud }) => isAdmin && !isCloud,
+	// },
 	{
 		label: 'Context',
 		type: 'divider',
@@ -68,11 +68,11 @@ const settingsNavItems: NavItem[] = [
 		label: 'Memory',
 		to: '/settings/memory',
 	},
-	{
-		label: 'File Explorer',
-		to: '/settings/context-explorer',
-		visible: ({ isAdmin }) => isAdmin,
-	},
+	// {
+	// 	label: 'File Explorer',
+	// 	to: '/settings/context-explorer',
+	// 	visible: ({ isAdmin }) => isAdmin,
+	// },
 ];
 
 interface SidebarSettingsNavProps {
