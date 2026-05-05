@@ -31,7 +31,7 @@ export const settingsSearchIndex: SettingsSearchEntry[] = [
 		pageLabel: 'Account',
 		section: 'General Settings',
 		title: 'Theme',
-		description: 'Choose how nao looks.',
+		description: 'Choose how Queryn looks.',
 		keywords: ['dark mode', 'light mode', 'appearance', 'color scheme'],
 	},
 	{
@@ -130,7 +130,7 @@ export const settingsSearchIndex: SettingsSearchEntry[] = [
 		pageLabel: 'Agent',
 		section: 'Memory',
 		title: 'Project Memory',
-		description: 'Memories enable nao to remember preferences and facts about team members.',
+		description: 'Memories enable Queryn to remember preferences and facts about team members.',
 		keywords: ['remember', 'learn', 'personalization'],
 		adminOnly: true,
 	},
@@ -313,7 +313,7 @@ export const settingsSearchIndex: SettingsSearchEntry[] = [
 		page: '/settings/memory',
 		pageLabel: 'Memory',
 		title: 'Memory',
-		description: 'Memories enables nao to learn about you and your preferences over time.',
+		description: 'Memories enables Queryn to learn about you and your preferences over time.',
 		keywords: ['remember', 'learn', 'personalization', 'preferences'],
 	},
 	{
