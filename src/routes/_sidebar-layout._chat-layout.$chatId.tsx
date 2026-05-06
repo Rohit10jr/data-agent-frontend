@@ -5,7 +5,19 @@ import { useChatStream } from '@/queries/use-chat-stream';
 import type { HistoryPart, HistoryMessage } from '@/queries/use-chat-history-query';
 import { Spinner } from '@/components/ui/spinner';
 import { ChatComposer } from '@/components/chat-composer';
+import { ChartRenderer } from '@/components/chart-renderer';
 import { cn } from '@/lib/utils';
+
+const CHART_PREFIX = 'CHART_JSON:';
+
+function parseChartContent(content: string): unknown | null {
+	if (!content.startsWith(CHART_PREFIX)) return null;
+	try {
+		return JSON.parse(content.slice(CHART_PREFIX.length));
+	} catch {
+		return null;
+	}
+}
 
 export const Route = createFileRoute('/_sidebar-layout/_chat-layout/$chatId')({
 	component: ChatDetailPage,
@@ -187,6 +199,14 @@ function ThinkingIndicator() {
 function ToolResultBlock({ part }: { part: Extract<HistoryPart, { type: 'tool-result' }> }) {
 	const [open, setOpen] = useState(part.tool_name === 'run_sql_query');
 	const content = part.content;
+
+	// Render generate_chart results as an actual chart instead of a JSON dump.
+	if (part.tool_name === 'generate_chart') {
+		const chartConfig = parseChartContent(content);
+		if (chartConfig) {
+			return <ChartRenderer config={chartConfig as never} />;
+		}
+	}
 
 	return (
 		<div className='border border-border rounded-md text-xs'>
