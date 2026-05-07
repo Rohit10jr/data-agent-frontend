@@ -2,9 +2,10 @@
 //
 // Differences from useChatStream:
 //  - No threadId yet — we POST connection_id instead.
-//  - On `thread_created`, we navigate to /<thread_id> and seed the chat-history
-//    cache so the chat-detail page can pick up the in-flight stream
-//    without waiting for the full history refetch.
+//  - `thread_created` only stashes the thread id. We defer navigation until the
+//    first real content event (token / tool_start / tool_result) so a failed
+//    first turn — which the backend cleans up by deleting the empty
+//    ChatSession — leaves the user on home rather than a dangling detail URL.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,9 +34,14 @@ export function useNewChatStream() {
 	const [streamError, setStreamError] = useState<string | undefined>();
 	const abortRef = useRef<AbortController | null>(null);
 	const threadIdRef = useRef<string | null>(null);
-	// Captured copy of the current user message so the `thread_created` handler
+	// Captured copy of the current user message so the navigation handler
 	// can seed the cache with it without depending on stale state in the closure.
 	const liveUserRef = useRef<HistoryMessage | null>(null);
+	// Whether we've already navigated to /<thread_id>. We defer navigation until
+	// the agent emits its first real event so a failed first turn (where the
+	// backend deletes the empty ChatSession) leaves the user on home, not on
+	// a now-404 detail URL.
+	const hasNavigatedRef = useRef(false);
 
 	const messages = useMemo<HistoryMessage[]>(() => {
 		const out: HistoryMessage[] = [];
@@ -44,46 +50,56 @@ export function useNewChatStream() {
 		return out;
 	}, [liveUser, liveAssistant]);
 
+	// Hand off to the chat-detail page once the agent has emitted real content.
+	// Before this point we keep the user on home so a failed first turn (cleaned
+	// up server-side) doesn't leave them on a dangling /<thread_id> URL.
+	const commitNavigation = useCallback(() => {
+		if (hasNavigatedRef.current) return;
+		const tid = threadIdRef.current;
+		if (!tid) return;
+		hasNavigatedRef.current = true;
+
+		qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
+			if (!prev) return prev;
+			if (prev.chats.some((c) => c.id === tid)) return prev;
+			const newChat: ChatListItem = {
+				id: tid,
+				projectId: 'default',
+				title: 'New Chat',
+				isStarred: false,
+				createdAt: Date.now(),
+				updatedAt: Date.now(),
+			};
+			return { ...prev, chats: [newChat, ...prev.chats] };
+		});
+
+		const seedMessages: HistoryMessage[] = [];
+		if (liveUserRef.current) seedMessages.push(liveUserRef.current);
+		seedMessages.push({
+			id: `pending-asst-${tid}`,
+			role: 'assistant',
+			parts: [],
+			usage: null,
+			created_at: null,
+		});
+		qc.setQueryData<ChatHistoryResponse>(chatHistoryQueryKey(tid), {
+			thread_id: tid,
+			messages: seedMessages,
+		});
+		navigate({ to: '/$chatId', params: { chatId: tid } });
+	}, [qc, navigate]);
+
 	const handleEvent = useCallback(
 		(event: AgentEvent) => {
 			switch (event.type) {
 				case 'thread_created': {
+					// Stash the thread id but defer navigation until first content.
 					threadIdRef.current = event.thread_id;
-					// Add the new chat to the sidebar list immediately.
-					qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
-						if (!prev) return prev;
-						const newChat: ChatListItem = {
-							id: event.thread_id,
-							projectId: 'default',
-							title: 'New Chat',
-							isStarred: false,
-							createdAt: Date.now(),
-							updatedAt: Date.now(),
-						};
-						return { ...prev, chats: [newChat, ...prev.chats] };
-					});
-					// Seed the chat-history cache with the user's message AND an empty
-					// assistant placeholder so the detail page mounts showing both
-					// bubbles immediately (the assistant bubble renders a thinking
-					// indicator while we wait for tokens).
-					const seedMessages: HistoryMessage[] = [];
-					if (liveUserRef.current) seedMessages.push(liveUserRef.current);
-					seedMessages.push({
-						id: `pending-asst-${event.thread_id}`,
-						role: 'assistant',
-						parts: [],
-						usage: null,
-						created_at: null,
-					});
-					qc.setQueryData<ChatHistoryResponse>(
-						chatHistoryQueryKey(event.thread_id),
-						{ thread_id: event.thread_id, messages: seedMessages },
-					);
-					navigate({ to: '/$chatId', params: { chatId: event.thread_id } });
 					break;
 				}
 
 				case 'token': {
+					commitNavigation();
 					const partType: 'reasoning' | 'text' = event.kind === 'reasoning' ? 'reasoning' : 'text';
 					setLiveAssistant((prev) => {
 						if (!prev) return prev;
@@ -101,6 +117,7 @@ export function useNewChatStream() {
 				}
 
 				case 'tool_start': {
+					commitNavigation();
 					setLiveAssistant((prev) =>
 						prev
 							? {
@@ -121,6 +138,7 @@ export function useNewChatStream() {
 				}
 
 				case 'tool_result': {
+					commitNavigation();
 					setLiveAssistant((prev) =>
 						prev
 							? {
@@ -162,7 +180,7 @@ export function useNewChatStream() {
 					break;
 			}
 		},
-		[qc, navigate],
+		[qc, navigate, commitNavigation],
 	);
 
 	const sendMessage = useCallback(
@@ -176,6 +194,7 @@ export function useNewChatStream() {
 
 			setStreamError(undefined);
 			threadIdRef.current = null;
+			hasNavigatedRef.current = false;
 			const userMessage: HistoryMessage = {
 				id: `live-user-${Date.now()}`,
 				role: 'user',
@@ -213,11 +232,11 @@ export function useNewChatStream() {
 				abortRef.current = null;
 				setIsStreaming(false);
 
-				// If we received a thread_id, hand the conversation off to the chat-detail
-				// page by seeding its history cache with the parts we accumulated, then
-				// invalidating so it refetches the canonical version from Django.
+				// Only hand off the cache if we actually navigated to the detail page.
+				// If the run failed before any content arrived, the backend has deleted
+				// the empty ChatSession and the user is still on home — no cache to seed.
 				const tid = threadIdRef.current;
-				if (tid) {
+				if (tid && hasNavigatedRef.current) {
 					const messagesSnapshot: HistoryMessage[] = [];
 					if (liveUser) messagesSnapshot.push(liveUser);
 					if (liveAssistant) messagesSnapshot.push(liveAssistant);
