@@ -184,7 +184,10 @@ export function useNewChatStream() {
 	);
 
 	const sendMessage = useCallback(
-		async (text: string, opts: { connectionId?: string; model: string }) => {
+		// opts includes `agent` from the shared ChatComposer; the home page is
+		// responsible for routing 'schema' messages to a different hook before
+		// this one is called, so we only handle the SQL case here.
+		async (text: string, opts: { connectionId?: string; model: string; agent?: string }) => {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
 			if (!opts.connectionId) {

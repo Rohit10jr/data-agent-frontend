@@ -129,7 +129,9 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	);
 
 	const sendMessage = useCallback(
-		async (text: string, opts?: { connectionId?: string; model?: string }) => {
+		// opts includes `agent` from the shared ChatComposer; ignored here because
+		// existing SQL chats can only ever stream against the SQL agent.
+		async (text: string, opts?: { connectionId?: string; model?: string; agent?: string }) => {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
 
