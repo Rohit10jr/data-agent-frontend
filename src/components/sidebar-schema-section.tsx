@@ -4,9 +4,7 @@
 
 import { useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { ChevronDown, Ellipsis, Pencil, Plus, TrashIcon } from 'lucide-react';
-
-import { persistAgent } from '@/components/agent-picker';
+import { Ellipsis, Pencil, TrashIcon } from 'lucide-react';
 
 import {
 	type SchemaProjectListItem,
@@ -26,13 +24,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { InputEdit } from '@/components/ui/input-edit';
 import { Link } from '@/components/ui/link';
+import { SidebarSectionHeader } from '@/components/sidebar-section-header';
 
 const STORAGE_KEY = 'sidebar-schemas-open';
 
 export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) {
 	const [isOpen, setIsOpen] = useState(() => localStorage.getItem(STORAGE_KEY) !== 'false');
 	const projects = useSchemaListQuery();
-	const navigate = useNavigate();
 
 	const toggle = useCallback(() => {
 		setIsOpen((prev) => {
@@ -41,13 +39,11 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 		});
 	}, []);
 
-	// Pre-select the schema agent in the home-page composer, then navigate
-	// there. The composer reads the persisted choice via getInitialAgent on
-	// mount, so it'll come up with "Schema Agent" already selected.
-	const startNewSchema = useCallback(() => {
-		persistAgent('schema');
-		navigate({ to: '/' });
-	}, [navigate]);
+	// + button hidden for now — keep this handler ready for re-enable:
+	// const startNewSchema = useCallback(() => {
+	// 	persistAgent('schema');  // import { persistAgent } from '@/components/agent-picker';
+	// 	navigate({ to: '/' });
+	// }, [navigate]);
 
 	const items = projects.data ?? [];
 
@@ -58,28 +54,29 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 				hideIf(isCollapsed),
 			)}
 		>
-			<div className='px-2 pt-2 space-y-0.5 flex items-center'>
-				<button
-					type='button'
-					onClick={toggle}
-					className={cn(
-						'flex-1 flex items-center gap-2 px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground',
-						'hover:text-foreground rounded-md',
-					)}
-				>
-					<ChevronDown
-						className={cn('size-3 transition-transform', !isOpen && '-rotate-90')}
-					/>
-					<span className='font-medium'>Schemas</span>
-				</button>
-				<button
-					type='button'
-					onClick={startNewSchema}
-					className='p-1 mr-1 text-muted-foreground hover:text-foreground'
-					title='New schema project'
-				>
-					<Plus className='size-3.5' />
-				</button>
+			<div className='px-2 space-y-0.5'>
+				<SidebarSectionHeader label='Schemas' isOpen={isOpen} onToggle={toggle} />
+				{/*
+				+ button hidden for now — keep the markup so we can re-enable later.
+				<SidebarSectionHeader
+					label='Schemas'
+					isOpen={isOpen}
+					onToggle={toggle}
+					extra={
+						<Button
+							onClick={(e) => {
+								e.stopPropagation();
+								startNewSchema();
+							}}
+							variant='ghost'
+							size='icon-xs'
+							title='New schema project'
+						>
+							<Plus className='size-3.5' />
+						</Button>
+					}
+				/>
+				*/}
 			</div>
 
 			<div
