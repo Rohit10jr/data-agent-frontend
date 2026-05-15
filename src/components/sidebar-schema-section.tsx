@@ -2,9 +2,9 @@
 // Lives next to the SQL chat list and operates independently — its own
 // collapse state, its own list, its own delete/rename mutations.
 
-import { useCallback, useRef, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { ChevronDown, Ellipsis, Pencil, Plus, TrashIcon } from 'lucide-react';
 
 import { persistAgent } from '@/components/agent-picker';
 
@@ -20,9 +20,12 @@ import { Button } from '@/components/ui/button';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { InputEdit } from '@/components/ui/input-edit';
+import { Link } from '@/components/ui/link';
 
 const STORAGE_KEY = 'sidebar-schemas-open';
 
@@ -100,97 +103,96 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 }
 
 function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
-	const [isEditing, setIsEditing] = useState(false);
-	const [draft, setDraft] = useState(project.name ?? 'New Project');
-	const inputRef = useRef<HTMLInputElement>(null);
-	const submittingRef = useRef(false);
+	const navigate = useNavigate();
 	const rename = useSchemaRenameMutation();
 	const remove = useSchemaDeleteMutation();
 	const timeAgo = useTimeAgo(project.updatedAt);
+	const [draft, setDraft] = useState(project.name ?? 'New Project');
+	const [isRenaming, setIsRenaming] = useState(false);
 
-	const startEditing = () => {
-		setDraft(project.name ?? '');
-		setIsEditing(true);
-		requestAnimationFrame(() => {
-			inputRef.current?.focus();
-			inputRef.current?.select();
-		});
-	};
-
-	const submit = async () => {
-		if (!isEditing || submittingRef.current) return;
+	const handleSubmit = async () => {
 		const trimmed = draft.trim();
 		if (trimmed && trimmed !== project.name) {
-			submittingRef.current = true;
-			try {
-				await rename.mutateAsync({ slug: project.slug, name: trimmed });
-			} finally {
-				submittingRef.current = false;
-			}
+			await rename.mutateAsync({ slug: project.slug, name: trimmed });
 		}
-		setIsEditing(false);
+		setIsRenaming(false);
 	};
 
-	const cancel = () => {
-		setDraft(project.name ?? '');
-		setIsEditing(false);
+	const handleEscape = () => {
+		setDraft(project.name ?? 'New Project');
+		setIsRenaming(false);
 	};
 
-	const handleDelete = () => {
-		if (window.confirm(`Delete "${project.name ?? 'this schema'}"? This can't be undone.`)) {
-			remove.mutate(project.slug);
+	const handleRenameSelect = () => {
+		setDraft(project.name ?? 'New Project');
+		setIsRenaming((p) => !p);
+	};
+
+	const handleDeleteSelect = () => {
+		if (confirm(`Delete "${project.name ?? 'this schema'}"? This cannot be undone.`)) {
+			remove.mutate(project.slug, {
+				onSuccess: () => navigate({ to: '/' }),
+			});
 		}
 	};
 
 	return (
-		<div className='group flex items-center gap-1 rounded-md hover:bg-sidebar-accent'>
-			{isEditing ? (
-				<input
-					ref={inputRef}
+		<Link
+			to='/schema/$slug'
+			params={{ slug: project.slug }}
+			className={cn(
+				'group relative w-full rounded-md px-3 py-2 transition-[background-color,padding,opacity] min-w-0 flex-1 flex gap-2 items-center',
+				!isRenaming && 'hover:pr-9 has-data-[state=open]:pr-9',
+			)}
+			inactiveProps={{
+				className: cn('text-sidebar-foreground hover:bg-sidebar-accent opacity-75'),
+			}}
+			activeProps={{
+				className: cn('text-foreground bg-sidebar-accent font-medium'),
+			}}
+			onDoubleClick={() => setIsRenaming(true)}
+		>
+			{isRenaming ? (
+				<InputEdit
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter') submit();
-						else if (e.key === 'Escape') cancel();
-					}}
-					onBlur={submit}
+					onSubmit={handleSubmit}
+					onEscape={handleEscape}
 					disabled={rename.isPending}
-					className='flex-1 bg-transparent text-sm px-2 py-1.5 outline-none rounded-md border border-border'
 				/>
 			) : (
-				<Link
-					to='/schema/$slug'
-					params={{ slug: project.slug }}
-					activeProps={{ className: 'bg-sidebar-accent text-foreground font-medium' }}
-					className='flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm rounded-md'
-				>
-					<span className='truncate flex-1'>{project.name ?? 'New Project'}</span>
-					<span className='text-[10px] text-muted-foreground shrink-0 group-hover:opacity-0 transition-opacity'>
-						{timeAgo}
-					</span>
-				</Link>
+				<>
+					<div className='truncate text-sm mr-auto'>{project.name ?? 'New Project'}</div>
+					<div className='text-xs text-muted-foreground whitespace-nowrap'>
+						{timeAgo.humanReadable}
+					</div>
+
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant='ghost'
+								size='icon-xs'
+								className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'
+							>
+								<Ellipsis />
+							</Button>
+						</DropdownMenuTrigger>
+
+						<DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+							<DropdownMenuGroup>
+								<DropdownMenuItem onSelect={handleRenameSelect}>
+									<Pencil />
+									Rename
+								</DropdownMenuItem>
+								<DropdownMenuItem variant='destructive' onSelect={handleDeleteSelect}>
+									<TrashIcon />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</>
 			)}
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant='ghost'
-						size='icon'
-						className='size-7 opacity-0 group-hover:opacity-100 transition-opacity'
-					>
-						<MoreHorizontal className='size-3.5' />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align='end'>
-					<DropdownMenuItem onClick={startEditing}>
-						<Pencil className='size-3.5' />
-						Rename
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={handleDelete} className='text-red-500 focus:text-red-500'>
-						<Trash2 className='size-3.5' />
-						Delete
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
+		</Link>
 	);
 }
