@@ -90,11 +90,14 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 		qc.setQueryData<SchemaProjectListItem[]>(SCHEMA_LIST_QUERY_KEY, (prev) => {
 			if (!prev) return prev;
 			if (prev.some((p) => p.slug === s)) return prev;
+			const now = Date.now();
 			const newRow: SchemaProjectListItem = {
 				id: -1,
 				slug: s,
 				name: 'New Project',
 				description: null,
+				createdAt: now,
+				updatedAt: now,
 			};
 			return [newRow, ...prev];
 		});

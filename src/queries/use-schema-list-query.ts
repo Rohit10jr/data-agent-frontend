@@ -11,7 +11,33 @@ export interface SchemaProjectListItem {
 	slug: string;
 	name: string;
 	description: string | null;
+	/** epoch milliseconds — adapted from Django's ISO `created_at` */
+	createdAt: number;
+	/** epoch milliseconds — adapted from Django's ISO `updated_at` (used for "Xd ago") */
+	updatedAt: number;
 }
+
+interface DjangoSchemaProject {
+	id: number;
+	slug: string;
+	name: string | null;
+	description: string | null;
+	created_at?: string;
+	updated_at?: string;
+}
+
+const adaptSchemaProject = (p: DjangoSchemaProject): SchemaProjectListItem => {
+	const created = p.created_at ? new Date(p.created_at).getTime() : Date.now();
+	const updated = p.updated_at ? new Date(p.updated_at).getTime() : created;
+	return {
+		id: p.id,
+		slug: p.slug,
+		name: p.name ?? 'New Project',
+		description: p.description ?? null,
+		createdAt: created,
+		updatedAt: updated,
+	};
+};
 
 export interface SchemaHistoryTurn {
 	id: number;
@@ -38,7 +64,10 @@ export const schemaProjectQueryKey = (slug: string) => ['schema', 'project', slu
 export const useSchemaListQuery = () => {
 	return useQuery<SchemaProjectListItem[]>({
 		queryKey: SCHEMA_LIST_QUERY_KEY,
-		queryFn: () => api.get<SchemaProjectListItem[]>('/schema-projects/'),
+		queryFn: async () => {
+			const rows = await api.get<DjangoSchemaProject[]>('/schema-projects/');
+			return rows.map(adaptSchemaProject);
+		},
 	});
 };
 

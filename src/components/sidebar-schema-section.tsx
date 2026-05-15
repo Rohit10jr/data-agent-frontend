@@ -14,6 +14,7 @@ import {
 	useSchemaListQuery,
 	useSchemaRenameMutation,
 } from '@/queries/use-schema-list-query';
+import { useTimeAgo } from '@/hooks/use-time-ago';
 import { cn, hideIf } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,9 +68,6 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 						className={cn('size-3 transition-transform', !isOpen && '-rotate-90')}
 					/>
 					<span className='font-medium'>Schemas</span>
-					{items.length > 0 && (
-						<span className='ml-auto text-[10px] text-muted-foreground'>{items.length}</span>
-					)}
 				</button>
 				<button
 					type='button'
@@ -108,6 +106,7 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 	const submittingRef = useRef(false);
 	const rename = useSchemaRenameMutation();
 	const remove = useSchemaDeleteMutation();
+	const timeAgo = useTimeAgo(project.updatedAt);
 
 	const startEditing = () => {
 		setDraft(project.name ?? '');
@@ -163,9 +162,12 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 					to='/schema/$slug'
 					params={{ slug: project.slug }}
 					activeProps={{ className: 'bg-sidebar-accent text-foreground font-medium' }}
-					className='flex-1 truncate px-2 py-1.5 text-sm rounded-md'
+					className='flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-sm rounded-md'
 				>
-					{project.name ?? 'New Project'}
+					<span className='truncate flex-1'>{project.name ?? 'New Project'}</span>
+					<span className='text-[10px] text-muted-foreground shrink-0 group-hover:opacity-0 transition-opacity'>
+						{timeAgo}
+					</span>
 				</Link>
 			)}
 			<DropdownMenu>
