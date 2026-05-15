@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, User, Bot, Database, Wrench } from 'lucide-react';
+import { ChevronRight, Database, Wrench } from 'lucide-react';
 import { useChatStream } from '@/queries/use-chat-stream';
 import type { HistoryPart, HistoryMessage } from '@/queries/use-chat-history-query';
 import { Spinner } from '@/components/ui/spinner';
 import { ChatComposer } from '@/components/chat-composer';
 import { ChartRenderer } from '@/components/chart-renderer';
+import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
 import { cn } from '@/lib/utils';
 
 const CHART_PREFIX = 'CHART_JSON:';
@@ -85,31 +86,20 @@ function MessageBubble({ message }: { message: HistoryMessage }) {
 	const isUser = message.role === 'user';
 
 	return (
-		<div className={cn('flex gap-3', isUser ? 'flex-row-reverse' : 'flex-row')}>
-			<div
-				className={cn(
-					'size-8 shrink-0 rounded-full flex items-center justify-center',
-					isUser ? 'bg-primary text-primary-foreground' : 'bg-sidebar-accent',
-				)}
-			>
-				{isUser ? <User className='size-4' /> : <Bot className='size-4' />}
-			</div>
+		<MessageRow role={message.role}>
+			{message.parts.length === 0 && !isUser ? (
+				<ThinkingIndicator />
+			) : (
+				message.parts.map((part, i) => <PartRenderer key={i} part={part} isUser={isUser} />)
+			)}
 
-			<div className={cn('flex-1 min-w-0 space-y-2', isUser && 'flex flex-col items-end')}>
-				{message.parts.length === 0 && !isUser ? (
-					<ThinkingIndicator />
-				) : (
-					message.parts.map((part, i) => <PartRenderer key={i} part={part} isUser={isUser} />)
-				)}
-
-				{message.usage?.total_tokens && !isUser && (
-					<p className='text-xs text-muted-foreground'>
-						{message.usage.input_tokens} in · {message.usage.output_tokens} out ·{' '}
-						{message.usage.total_tokens} tokens
-					</p>
-				)}
-			</div>
-		</div>
+			{message.usage?.total_tokens && !isUser && (
+				<p className='text-xs text-muted-foreground'>
+					{message.usage.input_tokens} in · {message.usage.output_tokens} out ·{' '}
+					{message.usage.total_tokens} tokens
+				</p>
+			)}
+		</MessageRow>
 	);
 }
 
@@ -117,16 +107,7 @@ function MessageBubble({ message }: { message: HistoryMessage }) {
 function PartRenderer({ part, isUser }: { part: HistoryPart; isUser: boolean }) {
 	switch (part.type) {
 		case 'text':
-			return (
-				<div
-					className={cn(
-						'rounded-lg px-4 py-2 text-sm whitespace-pre-wrap',
-						isUser ? 'bg-primary text-primary-foreground max-w-2xl' : 'bg-sidebar-accent',
-					)}
-				>
-					{part.text}
-				</div>
-			);
+			return <TextBubble role={isUser ? 'user' : 'assistant'} text={part.text} />;
 
 		case 'reasoning':
 			return <ReasoningBlock text={part.text} />;
@@ -175,23 +156,6 @@ function ToolCallBlock({ part }: { part: Extract<HistoryPart, { type: 'tool-call
 					{JSON.stringify(part.args, null, 2)}
 				</pre>
 			)}
-		</div>
-	);
-}
-
-function ThinkingIndicator() {
-	return (
-		<div
-			className='inline-flex items-center gap-2 rounded-lg bg-sidebar-accent px-4 py-2.5 text-sm text-muted-foreground'
-			role='status'
-			aria-live='polite'
-		>
-			<span>Thinking</span>
-			<span className='inline-flex items-center gap-0.5'>
-				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.3s]' />
-				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:-0.15s]' />
-				<span className='size-1.5 rounded-full bg-muted-foreground animate-bounce' />
-			</span>
 		</div>
 	);
 }

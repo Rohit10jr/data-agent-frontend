@@ -165,7 +165,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	);
 
 	const sendMessage = useCallback(
-		async (text: string) => {
+		async (text: string, model?: string) => {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
 
@@ -188,6 +188,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				await streamSchemaAgent({
 					query: trimmed,
 					slug,
+					model,
 					signal: controller.signal,
 					onEvent: handleEvent,
 				});

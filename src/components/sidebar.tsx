@@ -145,10 +145,10 @@ export function Sidebar() {
       className={cn(
         "flex flex-col h-full overflow-hidden",
         isMobile
-          ? "w-72 bg-sidebar"
+          ? "w-60 bg-sidebar"
           : cn(
               "border-r border-sidebar-border transition-[width,background-color] duration-300",
-              effectiveIsCollapsed ? "w-13 bg-panel" : "w-72 bg-sidebar",
+              effectiveIsCollapsed ? "w-13 bg-panel" : "w-60 bg-sidebar",
             ),
       )}
     >
@@ -446,7 +446,7 @@ function SidebarNav({
           <ChatList
             chats={starred}
             className={cn(
-              "w-72 flex-none transition-opacity duration-200",
+              "w-60 flex-none transition-opacity duration-200",
               starredOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
             )}
           />
@@ -466,7 +466,7 @@ function SidebarNav({
       {!sharedOpen ? (
         <div
           className={cn(
-            "w-72 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200",
+            "w-60 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200",
             chatsOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
           )}
         >
@@ -489,7 +489,7 @@ function SidebarNav({
       ) : (
         <div
           className={cn(
-            "w-72 flex-1 flex-col overflow-y-auto px-2 space-y-1 gap-0.5",
+            "w-60 flex-1 flex-col overflow-y-auto px-2 space-y-1 gap-0.5",
             chatsOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
           )}
         >

@@ -47,6 +47,7 @@ interface StreamArgs {
 interface SchemaStreamArgs {
 	query: string;
 	slug?: string;               // omit to start a new schema project
+	model?: string;              // Groq model id (schema_agent.SUPPORTED_MODELS)
 	signal?: AbortSignal;
 	onEvent: (event: SchemaAgentEvent) => void;
 }
@@ -136,6 +137,7 @@ export function streamSqlAgent({
 export function streamSchemaAgent({
 	query,
 	slug,
+	model,
 	signal,
 	onEvent,
 }: SchemaStreamArgs): Promise<void> {
@@ -143,9 +145,9 @@ export function streamSchemaAgent({
 		'/api/schema-agent/',
 		{
 			query,
-			// Backend's MessageSerializer expects `thread_id`; the schema agent
-			// uses the same field as the slug.
+			// The schema agent uses `thread_id` as the project slug.
 			thread_id: slug,
+			model,
 		},
 		onEvent,
 		signal,

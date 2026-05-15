@@ -83,7 +83,7 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 
 			<div
 				className={cn(
-					'w-72 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200',
+					'w-60 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200',
 					isOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden',
 				)}
 			>

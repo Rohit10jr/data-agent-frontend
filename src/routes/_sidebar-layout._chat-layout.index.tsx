@@ -28,7 +28,7 @@ function HomePage() {
 
 	const handleSend = (text: string, opts: ChatComposerSendOpts) => {
 		if (opts.agent === 'schema') {
-			void schemaNew.sendMessage(text);
+			void schemaNew.sendMessage(text, opts.model);
 		} else {
 			void sqlNew.sendMessage(text, {
 				connectionId: opts.connectionId,

@@ -1,8 +1,11 @@
-// Schema-agent project page. 40/60 split: refine-chat on the left, schema
-// visualizations (cards + ER diagram + generated SQL/seed) on the right.
-// Updates live as the streaming agent emits SCHEMA and SQL result events.
+// Schema-agent project page. A permanent resizable split:
+//   LEFT  (~45%) — refine chat, reuses the shared chat primitives + ChatComposer
+//   RIGHT (~55%) — tabbed schema panel: Tables / ER Diagram / SQL & Seed
+// The split ratio is drag-resizable and persisted via PanelGroup's autoSaveId.
+// Updates live as the streaming agent emits SCHEMA / SQL result events.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import {
 	Background,
 	Controls,
@@ -14,17 +17,7 @@ import {
 	type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-	Bot,
-	Database,
-	FileText,
-	KeyRound,
-	Link2,
-	Loader2,
-	Send,
-	Table2,
-	User,
-} from 'lucide-react';
+import { Database, KeyRound, Link2, Loader2 } from 'lucide-react';
 
 import {
 	type SqlDialect,
@@ -33,12 +26,12 @@ import {
 	useSchemaVariantMutation,
 } from '@/queries/use-schema-list-query';
 import {
-	type SchemaStreamState,
 	mergeHistoryWithLive,
 	pickLatestArtifacts,
 	useSchemaStream,
 } from '@/queries/use-schema-stream';
-import { Button } from '@/components/ui/button';
+import { ChatComposer } from '@/components/chat-composer';
+import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
 import { cn } from '@/lib/utils';
 
 interface Column {
@@ -54,6 +47,8 @@ interface ParsedTable {
 interface Props {
 	slug?: string;
 }
+
+type PanelTab = 'tables' | 'er' | 'sql';
 
 const DIALECT_OPTIONS: { value: 'plain' | SqlDialect; label: string }[] = [
 	{ value: 'plain', label: 'Plain' },
@@ -83,59 +78,62 @@ export function SchemaViewer({ slug }: Props) {
 	const tables = useMemo(() => parseTables(schemaTable), [schemaTable]);
 
 	const projectName = project.data?.name ?? (slug ? 'Loading…' : 'New schema project');
-	const projectId = project.data?.id;
 
 	return (
 		<div className='flex flex-col h-full bg-panel'>
-			<header className='px-6 py-4 border-b border-border'>
-				<h1 className='text-lg font-semibold truncate'>{projectName}</h1>
+			<header className='px-6 py-3 border-b border-border shrink-0'>
+				<h1 className='text-base font-semibold truncate'>{projectName}</h1>
 			</header>
 
-			<div className='flex-1 grid grid-cols-1 md:grid-cols-5 overflow-hidden'>
-				<RefinePanel
-					turns={turns}
-					stream={stream}
-					hasSlug={!!slug}
+			<PanelGroup direction='horizontal' autoSaveId='schema-split' className='flex-1'>
+				<Panel defaultSize={45} minSize={30}>
+					<SchemaChatPane turns={turns} stream={stream} hasSlug={!!slug} />
+				</Panel>
+
+				<PanelResizeHandle
+					className={cn(
+						'w-1.5 bg-border hover:bg-foreground/20 transition-colors cursor-col-resize',
+						'data-[resize-handle-state=drag]:bg-foreground/30',
+					)}
 				/>
-				<SchemaPanel
-					tables={tables}
-					sqlPlain={sqlTable}
-					seedPlain={sqlSeedData}
-					projectId={projectId}
-				/>
-			</div>
+
+				<Panel defaultSize={55} minSize={30}>
+					<SchemaArtifactPanel
+						tables={tables}
+						sqlPlain={sqlTable}
+						seedPlain={sqlSeedData}
+						projectId={project.data?.id}
+					/>
+				</Panel>
+			</PanelGroup>
 		</div>
 	);
 }
 
-// ── Left: refine chat (40%) ─────────────────────────────────────────────
+// ── Left: refine chat ───────────────────────────────────────────────────
 
-function RefinePanel({
+function SchemaChatPane({
 	turns,
 	stream,
 	hasSlug,
 }: {
 	turns: ReturnType<typeof mergeHistoryWithLive>;
-	stream: SchemaStreamState & { sendMessage: (text: string) => void; abort: () => void };
+	stream: ReturnType<typeof useSchemaStream>;
 	hasSlug: boolean;
 }) {
-	const [value, setValue] = useState('');
 	const bottomRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
 	}, [turns, stream.currentNode]);
 
-	const submit = () => {
-		const trimmed = value.trim();
-		if (!trimmed || stream.isStreaming) return;
-		stream.sendMessage(trimmed);
-		setValue('');
-	};
+	// Once the assistant starts producing text it lands in `turns`; before that
+	// (decision / schema / sql nodes running) show the node label as progress.
+	const showProgress = stream.isStreaming && !stream.liveAssistant;
 
 	return (
-		<div className='md:col-span-2 flex flex-col border-r border-border min-h-0'>
-			<div className='flex-1 overflow-y-auto px-4 py-4 space-y-3'>
+		<div className='flex flex-col h-full min-h-0'>
+			<div className='flex-1 overflow-y-auto px-4 py-4 space-y-4'>
 				{turns.length === 0 && !stream.isStreaming && (
 					<div className='text-sm text-muted-foreground space-y-2 mt-6'>
 						<p className='font-medium text-foreground'>Refine the schema by chat.</p>
@@ -148,28 +146,15 @@ function RefinePanel({
 				)}
 
 				{turns.map((t) => (
-					<div key={t.id} className='flex gap-2.5'>
-						<div className='shrink-0 size-6 rounded-full bg-sidebar-accent flex items-center justify-center mt-0.5'>
-							{t.role === 'user' ? <User className='size-3.5' /> : <Bot className='size-3.5' />}
-						</div>
-						<div
-							className={cn(
-								'flex-1 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap',
-								t.role === 'user'
-									? 'bg-foreground/5 text-foreground'
-									: 'bg-sidebar-accent text-foreground',
-							)}
-						>
-							{t.text || (t.role === 'assistant' ? '…' : '')}
-						</div>
-					</div>
+					<MessageRow key={t.id} role={t.role}>
+						<TextBubble role={t.role} text={t.text || (t.role === 'assistant' ? '…' : '')} />
+					</MessageRow>
 				))}
 
-				{stream.isStreaming && stream.currentNode && (
-					<div className='inline-flex items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1 text-xs text-muted-foreground'>
-						<Loader2 className='size-3 animate-spin' />
-						{stream.currentNode}
-					</div>
+				{showProgress && (
+					<MessageRow role='assistant'>
+						<ThinkingIndicator label={stream.currentNode ?? 'Thinking'} />
+					</MessageRow>
 				)}
 
 				{stream.streamError && (
@@ -179,52 +164,25 @@ function RefinePanel({
 				<div ref={bottomRef} />
 			</div>
 
-			<div className='border-t border-border p-3'>
-				<div
-					className={cn(
-						'rounded-2xl border border-border bg-background',
-						'focus-within:border-foreground transition-colors',
-					)}
-				>
-					<textarea
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === 'Enter' && !e.shiftKey) {
-								e.preventDefault();
-								submit();
-							}
-						}}
-						placeholder={
-							hasSlug ? 'Describe changes…' : 'Describe the schema you want to design…'
-						}
-						disabled={stream.isStreaming}
-						rows={2}
-						className='block w-full resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground'
-					/>
-					<div className='flex items-center justify-end px-2 pb-2'>
-						<Button
-							size='icon-sm'
-							onClick={submit}
-							disabled={stream.isStreaming || !value.trim()}
-							title='Send'
-						>
-							{stream.isStreaming ? (
-								<Loader2 className='size-3.5 animate-spin' />
-							) : (
-								<Send className='size-3.5' />
-							)}
-						</Button>
-					</div>
-				</div>
-			</div>
+			<ChatComposer
+				showAgentPicker={false}
+				showConnectionPicker={false}
+				isStreaming={stream.isStreaming}
+				onAbort={stream.abort}
+				onSend={(text, opts) => stream.sendMessage(text, opts.model)}
+				placeholder={
+					hasSlug
+						? 'Refine the schema, e.g. "add a posts table with an author FK"'
+						: 'Describe the database you want to design…'
+				}
+			/>
 		</div>
 	);
 }
 
-// ── Right: schema visualizations (60%) ──────────────────────────────────
+// ── Right: tabbed schema panel ──────────────────────────────────────────
 
-function SchemaPanel({
+function SchemaArtifactPanel({
 	tables,
 	sqlPlain,
 	seedPlain,
@@ -235,37 +193,57 @@ function SchemaPanel({
 	seedPlain: string | null;
 	projectId: number | undefined;
 }) {
+	const [tab, setTab] = useState<PanelTab>('tables');
+
+	const TABS: { id: PanelTab; label: string }[] = [
+		{ id: 'tables', label: `Tables${tables.length ? ` (${tables.length})` : ''}` },
+		{ id: 'er', label: 'ER Diagram' },
+		{ id: 'sql', label: 'SQL & Seed' },
+	];
+
 	return (
-		<div className='md:col-span-3 overflow-y-auto'>
-			<div className='p-6 space-y-6'>
-				<SchemaCardSection tables={tables} />
-				<GeneratedAssetsSection
-					sqlPlain={sqlPlain}
-					seedPlain={seedPlain}
-					projectId={projectId}
-				/>
-				<ERDiagramSection tables={tables} />
+		<div className='flex flex-col h-full min-h-0'>
+			<div className='flex items-center gap-1 px-3 py-2 border-b border-border shrink-0'>
+				{TABS.map((t) => (
+					<button
+						key={t.id}
+						type='button'
+						onClick={() => setTab(t.id)}
+						className={cn(
+							'px-3 py-1 text-xs rounded-md transition-colors',
+							tab === t.id
+								? 'bg-foreground text-background'
+								: 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent',
+						)}
+					>
+						{t.label}
+					</button>
+				))}
+			</div>
+
+			<div className='flex-1 overflow-y-auto p-4'>
+				{tab === 'tables' && <TablesTab tables={tables} />}
+				{tab === 'er' && <ErTab tables={tables} />}
+				{tab === 'sql' && (
+					<SqlTab sqlPlain={sqlPlain} seedPlain={seedPlain} projectId={projectId} />
+				)}
 			</div>
 		</div>
 	);
 }
 
-// ── Card grid ───────────────────────────────────────────────────────────
+// ── Tab: Tables (card grid) ─────────────────────────────────────────────
 
-function SchemaCardSection({ tables }: { tables: ParsedTable[] }) {
+function TablesTab({ tables }: { tables: ParsedTable[] }) {
+	if (tables.length === 0) {
+		return <EmptyHint text='Tables will appear here as the agent designs the schema.' />;
+	}
 	return (
-		<section>
-			<SectionHeader icon={Table2} title='Tables' count={tables.length} />
-			{tables.length === 0 ? (
-				<EmptyHint text='Tables will appear here as the agent designs the schema.' />
-			) : (
-				<div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-					{tables.map((t) => (
-						<TableCard key={t.name} table={t} />
-					))}
-				</div>
-			)}
-		</section>
+		<div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+			{tables.map((t) => (
+				<TableCard key={t.name} table={t} />
+			))}
+		</div>
 	);
 }
 
@@ -288,12 +266,8 @@ function TableCard({ table }: { table: ParsedTable }) {
 							className='flex items-center justify-between px-3 py-1.5 text-xs'
 						>
 							<div className='flex items-center gap-2 min-w-0'>
-								{isPK && (
-									<KeyRound className='size-3 text-amber-500 shrink-0' />
-								)}
-								{!isPK && isFK && (
-									<Link2 className='size-3 text-blue-500 shrink-0' />
-								)}
+								{isPK && <KeyRound className='size-3 text-amber-500 shrink-0' />}
+								{!isPK && isFK && <Link2 className='size-3 text-blue-500 shrink-0' />}
 								<span className='font-mono truncate'>{col.name}</span>
 							</div>
 							<span className='font-mono text-muted-foreground text-[10px] shrink-0 ml-2'>
@@ -307,9 +281,9 @@ function TableCard({ table }: { table: ParsedTable }) {
 	);
 }
 
-// ── Generated assets (SQL + seed + dialect picker) ──────────────────────
+// ── Tab: SQL & Seed (with dialect picker) ───────────────────────────────
 
-function GeneratedAssetsSection({
+function SqlTab({
 	sqlPlain,
 	seedPlain,
 	projectId,
@@ -324,18 +298,13 @@ function GeneratedAssetsSection({
 
 	useEffect(() => {
 		if (dialect === 'plain' || !projectId) return;
-		if (variants[dialect]) return; // cached
+		if (variants[dialect]) return;
 		if (variantMutation.isPending) return;
 		variantMutation
 			.mutateAsync({ projectId, dialect })
-			.then((data) =>
-				setVariants((prev) => ({
-					...prev,
-					[dialect]: data,
-				})),
-			)
+			.then((data) => setVariants((prev) => ({ ...prev, [dialect]: data })))
 			.catch(() => {
-				// Mutation state surfaces the error in the UI below.
+				// error surfaced via variantMutation.isError below
 			});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [dialect, projectId]);
@@ -346,9 +315,8 @@ function GeneratedAssetsSection({
 	const hasAnything = !!(displaySql || displaySeed);
 
 	return (
-		<section>
-			<div className='flex items-center justify-between mb-3'>
-				<SectionHeader icon={FileText} title='Generated assets' />
+		<div className='space-y-3'>
+			<div className='flex items-center justify-end'>
 				<DialectPicker
 					value={dialect}
 					onChange={setDialect}
@@ -360,22 +328,16 @@ function GeneratedAssetsSection({
 			{!hasAnything ? (
 				<EmptyHint text='SQL and seed data will appear here once the agent generates them.' />
 			) : (
-				<div className='space-y-3'>
-					{displaySql && (
-						<CodeBlock title='CREATE TABLE' language='sql' body={displaySql} />
-					)}
-					{displaySeed && (
-						<CodeBlock title='Seed data' language='sql' body={displaySeed} />
-					)}
-				</div>
+				<>
+					{displaySql && <CodeBlock title='CREATE TABLE' language='sql' body={displaySql} />}
+					{displaySeed && <CodeBlock title='Seed data' language='sql' body={displaySeed} />}
+				</>
 			)}
 
 			{variantMutation.isError && (
-				<p className='mt-2 text-xs text-red-500'>
-					Failed to load {dialect} variant. Try again.
-				</p>
+				<p className='text-xs text-red-500'>Failed to load {dialect} variant. Try again.</p>
 			)}
-		</section>
+		</div>
 	);
 }
 
@@ -427,43 +389,37 @@ function CodeBlock({
 				<span className='font-medium'>{title}</span>
 				<span className='text-muted-foreground font-mono uppercase'>{language}</span>
 			</div>
-			<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>
-				{body}
-			</pre>
+			<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>{body}</pre>
 		</div>
 	);
 }
 
-// ── ER diagram ──────────────────────────────────────────────────────────
+// ── Tab: ER diagram ─────────────────────────────────────────────────────
 
-function ERDiagramSection({ tables }: { tables: ParsedTable[] }) {
+function ErTab({ tables }: { tables: ParsedTable[] }) {
 	const { nodes, edges } = useMemo(() => buildErGraph(tables), [tables]);
 
+	if (tables.length === 0) {
+		return (
+			<EmptyHint text='Relationships will be inferred from foreign keys once tables exist.' />
+		);
+	}
+
 	return (
-		<section>
-			<SectionHeader icon={Link2} title='ER diagram' />
-			{tables.length === 0 ? (
-				<EmptyHint text='Relationships will be inferred from foreign keys once tables exist.' />
-			) : (
-				<div className='h-[500px] border border-border rounded-md overflow-hidden bg-background'>
-					<ReactFlow
-						nodes={nodes}
-						edges={edges}
-						nodeTypes={erNodeTypes}
-						fitView
-						proOptions={{ hideAttribution: true }}
-					>
-						<Background gap={16} />
-						<Controls showInteractive={false} />
-					</ReactFlow>
-				</div>
-			)}
-		</section>
+		<div className='h-[calc(100%-0px)] min-h-[400px] border border-border rounded-md overflow-hidden bg-background'>
+			<ReactFlow
+				nodes={nodes}
+				edges={edges}
+				nodeTypes={erNodeTypes}
+				fitView
+				proOptions={{ hideAttribution: true }}
+			>
+				<Background gap={16} />
+				<Controls showInteractive={false} />
+			</ReactFlow>
+		</div>
 	);
 }
-
-// ER nodes: one custom table node per table. Edges inferred from FK naming
-// or explicit REFERENCES clauses.
 
 const erNodeTypes = { table: ErTableNode };
 
@@ -536,12 +492,10 @@ function buildErGraph(tables: ParsedTable[]): { nodes: Node[]; edges: Edge[] } {
 		for (const col of table.columns) {
 			let targetTable: string | undefined;
 
-			// 1. Explicit REFERENCES <table>(<col>)
 			const refMatch = col.constraints.match(/REFERENCES\s+(\w+)\s*\(/i);
 			if (refMatch) {
 				targetTable = refMatch[1];
 			} else if (col.name.toLowerCase().endsWith('_id')) {
-				// 2. Heuristic: `<thing>_id` → table `thing` or `things`
 				const base = col.name.slice(0, -3).toLowerCase();
 				targetTable = tables.find(
 					(t) => t.name.toLowerCase() === base || t.name.toLowerCase() === `${base}s`,
@@ -549,7 +503,6 @@ function buildErGraph(tables: ParsedTable[]): { nodes: Node[]; edges: Edge[] } {
 			}
 			if (!targetTable || targetTable === table.name) continue;
 
-			// Resolve PK column on target for sourceHandle (fallback to first column).
 			const pkCol =
 				tables
 					.find((t) => t.name === targetTable)
@@ -572,27 +525,7 @@ function buildErGraph(tables: ParsedTable[]): { nodes: Node[]; edges: Edge[] } {
 	return { nodes, edges };
 }
 
-// ── Shared bits ─────────────────────────────────────────────────────────
-
-function SectionHeader({
-	icon: Icon,
-	title,
-	count,
-}: {
-	icon: typeof Database;
-	title: string;
-	count?: number;
-}) {
-	return (
-		<h2 className='flex items-center gap-2 text-sm font-semibold mb-3'>
-			<Icon className='size-4 text-muted-foreground' />
-			{title}
-			{typeof count === 'number' && (
-				<span className='text-xs text-muted-foreground font-normal'>({count})</span>
-			)}
-		</h2>
-	);
-}
+// ── Shared ──────────────────────────────────────────────────────────────
 
 function EmptyHint({ text }: { text: string }) {
 	return (
