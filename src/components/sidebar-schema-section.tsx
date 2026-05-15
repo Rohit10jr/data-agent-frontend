@@ -50,7 +50,10 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 	return (
 		<div
 			className={cn(
-				'flex flex-col flex-1 overflow-hidden transition-[opacity,visibility] duration-300 border-t border-sidebar-border',
+				'flex flex-col overflow-hidden transition-[opacity,visibility] duration-300 border-t border-sidebar-border',
+				// Only claim flex-1 when expanded — otherwise the section collapses to
+				// just its header so the next section (or empty space) sits right below.
+				isOpen && 'flex-1 min-h-0',
 				hideIf(isCollapsed),
 			)}
 		>
@@ -79,22 +82,19 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 				*/}
 			</div>
 
-			<div
-				className={cn(
-					'w-60 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200',
-					isOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden',
-				)}
-			>
-				{projects.isLoading ? (
-					<p className='text-xs text-muted-foreground text-center p-4'>Loading…</p>
-				) : items.length === 0 ? (
-					<p className='text-xs text-muted-foreground text-center p-4'>
-						No schema projects yet.
-					</p>
-				) : (
-					items.map((p) => <SchemaProjectListRow key={p.slug} project={p} />)
-				)}
-			</div>
+			{isOpen && (
+				<div className='w-60 flex-1 overflow-y-auto px-2 space-y-1'>
+					{projects.isLoading ? (
+						<p className='text-xs text-muted-foreground text-center p-4'>Loading…</p>
+					) : items.length === 0 ? (
+						<p className='text-xs text-muted-foreground text-center p-4'>
+							No schema projects yet.
+						</p>
+					) : (
+						items.map((p) => <SchemaProjectListRow key={p.slug} project={p} />)
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

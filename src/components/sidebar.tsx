@@ -428,7 +428,10 @@ function SidebarNav({
   return (
     <div
       className={cn(
-        "flex flex-col flex-1 overflow-hidden transition-[opacity,visibility] duration-300",
+        "flex flex-col overflow-hidden transition-[opacity,visibility] duration-300",
+        // Only claim flex-1 when the main Chats list is expanded — otherwise the
+        // section collapses to just its headers so the next section sits right below.
+        chatsOpen && "flex-1 min-h-0",
         hideIf(isCollapsed),
       )}
     >
@@ -442,13 +445,7 @@ function SidebarNav({
               activity={starredActivity}
             />
           </div>
-          <ChatList
-            chats={starred}
-            className={cn(
-              "w-60 flex-none transition-opacity duration-200",
-              starredOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
-            )}
-          />
+          {starredOpen && <ChatList chats={starred} className="w-60 flex-none" />}
         </>
       )}
 
@@ -462,47 +459,41 @@ function SidebarNav({
         />
       </div>
 
-      {!sharedOpen ? (
-        <div
-          className={cn(
-            "w-60 flex-1 overflow-y-auto px-2 space-y-1 transition-opacity duration-200",
-            chatsOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
-          )}
-        >
-          {mixedList.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center p-4">
-              No chats yet.
-              <br />
-              Start a new chat!
-            </p>
-          ) : (
-            mixedList.map((item) =>
-              item.kind === "own" ? (
-                <ChatListItem key={item.data.id} chat={item.data} />
-              ) : (
-                <SharedChatListItem key={item.data.id} sharedChat={item.data} />
-              ),
-            )
-          )}
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "w-60 flex-1 flex-col overflow-y-auto px-2 space-y-1 gap-0.5",
-            chatsOpen ? "opacity-100" : "opacity-0 h-0 overflow-hidden",
-          )}
-        >
-          {sharedWithMeChats.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center p-4">
-              No chats shared with you.
-            </p>
-          ) : (
-            sharedWithMeChats.map((sc) => (
-              <SharedChatListItem key={sc.id} sharedChat={sc} />
-            ))
-          )}
-        </div>
-      )}
+      {chatsOpen &&
+        (!sharedOpen ? (
+          <div className="w-60 flex-1 overflow-y-auto px-2 space-y-1">
+            {mixedList.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center p-4">
+                No chats yet.
+                <br />
+                Start a new chat!
+              </p>
+            ) : (
+              mixedList.map((item) =>
+                item.kind === "own" ? (
+                  <ChatListItem key={item.data.id} chat={item.data} />
+                ) : (
+                  <SharedChatListItem
+                    key={item.data.id}
+                    sharedChat={item.data}
+                  />
+                ),
+              )
+            )}
+          </div>
+        ) : (
+          <div className="w-60 flex-1 flex-col overflow-y-auto px-2 space-y-1 gap-0.5">
+            {sharedWithMeChats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center p-4">
+                No chats shared with you.
+              </p>
+            ) : (
+              sharedWithMeChats.map((sc) => (
+                <SharedChatListItem key={sc.id} sharedChat={sc} />
+              ))
+            )}
+          </div>
+        ))}
     </div>
   );
 }
