@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export type UsageGranularity = 'hour' | 'day' | 'month' | 'year';
+export type UsageGranularity = 'hour' | 'day' | 'month';
 
 export interface UsageBucket {
 	bucket: string | null;          // ISO timestamp (truncated to the granularity)

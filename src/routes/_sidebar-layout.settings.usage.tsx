@@ -1,5 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import {
+	Bar,
+	BarChart,
+	CartesianGrid,
+	Legend,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from 'recharts';
+import type { TooltipProps } from 'recharts';
+
 import { useUsageQuery, type UsageGranularity, type UsageBucket } from '@/queries/use-usage-query';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
@@ -12,7 +24,6 @@ const GRANULARITIES: { value: UsageGranularity; label: string }[] = [
 	{ value: 'hour', label: 'Hour' },
 	{ value: 'day', label: 'Day' },
 	{ value: 'month', label: 'Month' },
-	{ value: 'year', label: 'Year' },
 ];
 
 function UsagePage() {
@@ -57,7 +68,6 @@ function UsagePage() {
 										{granularity === 'hour' && 'Last 24 hours'}
 										{granularity === 'day' && 'Last 30 days'}
 										{granularity === 'month' && 'Last 12 months'}
-										{granularity === 'year' && 'Last 5 years'}
 									</p>
 								</div>
 								<GranularitySwitch value={granularity} onChange={setGranularity} />
@@ -151,7 +161,14 @@ function GranularitySwitch({
 	);
 }
 
-// ── Bar chart (pure CSS, no chart library) ────────────────────────────
+// ── Stacked bar chart (Recharts) ──────────────────────────────────────
+interface ChartRow {
+	label: string;
+	input: number;
+	reasoning: number;
+	output: number;
+}
+
 function UsageBarChart({
 	buckets,
 	granularity,
@@ -159,44 +176,123 @@ function UsageBarChart({
 	buckets: UsageBucket[];
 	granularity: UsageGranularity;
 }) {
+	const data = useMemo<ChartRow[]>(
+		() =>
+			buckets.map((b) => ({
+				label: formatBucket(b.bucket, granularity),
+				input: b.input_tokens,
+				reasoning: b.reasoning_tokens,
+				output: b.output_tokens,
+			})),
+		[buckets, granularity],
+	);
+
+	const totalInWindow = buckets.reduce((sum, b) => sum + b.total_tokens, 0);
+
 	if (buckets.length === 0) {
 		return (
-			<div className='flex items-center justify-center h-48 text-sm text-muted-foreground'>
+			<div className='flex items-center justify-center h-64 text-sm text-muted-foreground'>
 				No usage in this window yet.
 			</div>
 		);
 	}
 
-	const max = Math.max(...buckets.map((b) => b.total_tokens), 1);
-	const totalInWindow = buckets.reduce((sum, b) => sum + b.total_tokens, 0);
-
 	return (
 		<div className='space-y-3'>
-			<div className='flex items-end gap-1 h-48 border-b border-border pb-1'>
-				{buckets.map((b, i) => {
-					const heightPct = (b.total_tokens / max) * 100;
-					return (
-						<div
-							key={i}
-							className='flex-1 min-w-0 flex flex-col items-center justify-end group'
-						>
-							<div className='w-full text-[10px] text-center text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity tabular-nums mb-1'>
-								{b.total_tokens.toLocaleString()}
-							</div>
-							<div
-								className='w-full rounded-t bg-foreground/80 hover:bg-foreground transition-colors min-h-[1px]'
-								style={{ height: `${heightPct}%` }}
-								title={`${formatBucket(b.bucket, granularity)} — ${b.total_tokens.toLocaleString()} tokens (${b.input_tokens.toLocaleString()} in / ${b.output_tokens.toLocaleString()} out)`}
-							/>
-						</div>
-					);
-				})}
+			<div className='h-64'>
+				<ResponsiveContainer width='100%' height='100%'>
+					<BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+						<CartesianGrid
+							strokeDasharray='3 3'
+							stroke='var(--border)'
+							vertical={false}
+						/>
+						<XAxis
+							dataKey='label'
+							tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+							axisLine={{ stroke: 'var(--border)' }}
+							tickLine={false}
+							interval='preserveStartEnd'
+						/>
+						<YAxis
+							tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+							axisLine={false}
+							tickLine={false}
+							tickFormatter={formatTokenCount}
+							width={60}
+						/>
+						<Tooltip
+							content={<UsageTooltip />}
+							cursor={{ fill: 'var(--sidebar-accent)', opacity: 0.4 }}
+						/>
+						<Legend
+							iconType='circle'
+							iconSize={8}
+							wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+						/>
+						<Bar
+							dataKey='input'
+							name='Input'
+							stackId='tokens'
+							fill='var(--chart-1)'
+						/>
+						<Bar
+							dataKey='reasoning'
+							name='Reasoning'
+							stackId='tokens'
+							fill='var(--chart-2)'
+						/>
+						<Bar
+							dataKey='output'
+							name='Output'
+							stackId='tokens'
+							fill='var(--chart-3)'
+							radius={[4, 4, 0, 0]}
+						/>
+					</BarChart>
+				</ResponsiveContainer>
 			</div>
 
-			<div className='flex justify-between text-[10px] text-muted-foreground'>
-				<span>{formatBucket(buckets[0]?.bucket, granularity)}</span>
-				<span className='font-mono'>{totalInWindow.toLocaleString()} tokens in window</span>
-				<span>{formatBucket(buckets[buckets.length - 1]?.bucket, granularity)}</span>
+			<p className='text-xs text-muted-foreground text-center'>
+				<span className='font-mono'>{totalInWindow.toLocaleString()}</span> tokens in window
+			</p>
+		</div>
+	);
+}
+
+function formatTokenCount(value: number): string {
+	if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+	if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+	return String(value);
+}
+
+function UsageTooltip({ active, payload, label }: TooltipProps<number, string>) {
+	if (!active || !payload || payload.length === 0) {
+		return null;
+	}
+	const total = payload.reduce((sum, p) => sum + (typeof p.value === 'number' ? p.value : 0), 0);
+	return (
+		<div className='rounded-md border border-border bg-background shadow-lg p-3 text-xs min-w-[180px]'>
+			<div className='font-medium mb-2'>{label}</div>
+			<div className='space-y-1'>
+				{payload.map((p) => (
+					<div key={String(p.dataKey)} className='flex items-center gap-2'>
+						<span
+							className='size-2 rounded-full shrink-0'
+							style={{ backgroundColor: p.color }}
+						/>
+						<span className='text-muted-foreground'>{p.name}</span>
+						<span className='font-mono ml-auto'>
+							{(typeof p.value === 'number' ? p.value : 0).toLocaleString()}
+						</span>
+					</div>
+				))}
+				<div className='border-t border-border pt-1 mt-1 flex items-center gap-2'>
+					<span className='font-medium'>Total</span>
+					<span className='font-mono ml-auto font-semibold'>
+						{total.toLocaleString()}
+					</span>
+				</div>
 			</div>
 		</div>
 	);
@@ -212,7 +308,5 @@ function formatBucket(iso: string | null | undefined, granularity: UsageGranular
 			return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 		case 'month':
 			return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
-		case 'year':
-			return d.getFullYear().toString();
 	}
 }
