@@ -77,14 +77,8 @@ export function SchemaViewer({ slug }: Props) {
 	const { schemaTable, sqlTable, sqlSeedData } = pickLatestArtifacts(project.data, stream);
 	const tables = useMemo(() => parseTables(schemaTable), [schemaTable]);
 
-	const projectName = project.data?.name ?? (slug ? 'Loading…' : 'New schema project');
-
 	return (
 		<div className='flex flex-col flex-1 overflow-hidden bg-panel min-w-0'>
-			<header className='px-6 py-3 border-b border-border shrink-0'>
-				<h1 className='text-base font-semibold truncate'>{projectName}</h1>
-			</header>
-
 			<PanelGroup direction='horizontal' autoSaveId='schema-split' className='flex-1 min-h-0'>
 				<Panel defaultSize={45} minSize={30} className='min-w-0'>
 					<SchemaChatPane turns={turns} stream={stream} hasSlug={!!slug} />
