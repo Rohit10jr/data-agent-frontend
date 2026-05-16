@@ -1,6 +1,5 @@
 import { PanelLeft } from 'lucide-react';
 import { EditableChatTitle } from '@/components/editable-chat-title';
-import { StoryOpenButton } from '@/components/story-open-button';
 import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/contexts/sidebar';
 
@@ -17,17 +16,12 @@ export function MobileHeader({ chatId, title }: { chatId?: string; title?: strin
 				<PanelLeft className='size-4 shrink-0' strokeWidth={1.5} />
 			</Button>
 			{chatId && title && (
-				<>
-					<EditableChatTitle
-						chatId={chatId}
-						title={title}
-						className='text-sm text-muted-foreground min-w-0 flex-1'
-					/>
-				</>
+				<EditableChatTitle
+					chatId={chatId}
+					title={title}
+					className='text-sm text-muted-foreground min-w-0 flex-1'
+				/>
 			)}
-			<div className='ml-auto shrink-0'>
-				<StoryOpenButton variant='ghost' />
-			</div>
 		</div>
 	);
 }
