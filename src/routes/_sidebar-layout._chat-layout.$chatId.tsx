@@ -38,7 +38,7 @@ function ChatDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className='flex-1 flex items-center justify-center'>
+			<div className='flex-1 flex items-center justify-center bg-panel'>
 				<Spinner className='size-5' />
 			</div>
 		);
@@ -46,7 +46,7 @@ function ChatDetailPage() {
 
 	if (error) {
 		return (
-			<div className='flex-1 flex items-center justify-center p-8'>
+			<div className='flex-1 flex items-center justify-center p-8 bg-panel'>
 				<p className='text-red-500 text-sm'>
 					Failed to load chat: {error instanceof Error ? error.message : 'unknown error'}
 				</p>
@@ -55,7 +55,7 @@ function ChatDetailPage() {
 	}
 
 	return (
-		<div className='flex flex-col flex-1 overflow-hidden'>
+		<div className='flex flex-col flex-1 overflow-hidden bg-panel'>
 			<div className='flex-1 overflow-y-auto'>
 				<div className='max-w-3xl mx-auto p-6 space-y-6'>
 					{messages.length === 0 ? (
