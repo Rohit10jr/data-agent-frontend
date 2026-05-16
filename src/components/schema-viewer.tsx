@@ -80,13 +80,13 @@ export function SchemaViewer({ slug }: Props) {
 	const projectName = project.data?.name ?? (slug ? 'Loading…' : 'New schema project');
 
 	return (
-		<div className='flex flex-col h-full bg-panel'>
+		<div className='flex flex-col flex-1 overflow-hidden bg-panel min-w-0'>
 			<header className='px-6 py-3 border-b border-border shrink-0'>
 				<h1 className='text-base font-semibold truncate'>{projectName}</h1>
 			</header>
 
-			<PanelGroup direction='horizontal' autoSaveId='schema-split' className='flex-1'>
-				<Panel defaultSize={45} minSize={30}>
+			<PanelGroup direction='horizontal' autoSaveId='schema-split' className='flex-1 min-h-0'>
+				<Panel defaultSize={45} minSize={30} className='min-w-0'>
 					<SchemaChatPane turns={turns} stream={stream} hasSlug={!!slug} />
 				</Panel>
 
@@ -97,7 +97,7 @@ export function SchemaViewer({ slug }: Props) {
 					)}
 				/>
 
-				<Panel defaultSize={55} minSize={30}>
+				<Panel defaultSize={55} minSize={30} className='min-w-0'>
 					<SchemaArtifactPanel
 						tables={tables}
 						sqlPlain={sqlTable}
@@ -132,8 +132,8 @@ function SchemaChatPane({
 	const showProgress = stream.isStreaming && !stream.liveAssistant;
 
 	return (
-		<div className='flex flex-col h-full min-h-0'>
-			<div className='flex-1 overflow-y-auto px-4 py-4 space-y-4'>
+		<div className='flex flex-col h-full min-h-0 min-w-0'>
+			<div className='flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4'>
 				{turns.length === 0 && !stream.isStreaming && (
 					<div className='text-sm text-muted-foreground space-y-2 mt-6'>
 						<p className='font-medium text-foreground'>Refine the schema by chat.</p>
@@ -202,7 +202,7 @@ function SchemaArtifactPanel({
 	];
 
 	return (
-		<div className='flex flex-col h-full min-h-0'>
+		<div className='flex flex-col h-full min-h-0 min-w-0'>
 			<div className='flex items-center gap-1 px-3 py-2 border-b border-border shrink-0'>
 				{TABS.map((t) => (
 					<button
@@ -221,7 +221,7 @@ function SchemaArtifactPanel({
 				))}
 			</div>
 
-			<div className='flex-1 overflow-y-auto p-4'>
+			<div className='flex-1 overflow-y-auto overflow-x-hidden p-4'>
 				{tab === 'tables' && <TablesTab tables={tables} />}
 				{tab === 'er' && <ErTab tables={tables} />}
 				{tab === 'sql' && (
