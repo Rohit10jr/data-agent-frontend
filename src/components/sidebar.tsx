@@ -24,7 +24,6 @@ import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarSettingsNav } from "./sidebar-settings-nav";
 
 import StoryIcon from "./ui/story-icon";
-import { SidebarCommunity } from "./sidebar-community";
 import type { LucideIcon } from "lucide-react";
 import type { ChatListItem as ChatListItemType } from "@nao/backend/chat";
 import type { SharedChatWithDetails } from "@nao/backend/shared-chat";
@@ -281,8 +280,6 @@ export function Sidebar() {
           effectiveIsCollapsed ? "p-1" : "p-2",
         )}
       >
-        {/* Community link hidden — not relevant for our deployment. */}
-        {/* {isInSettings && <SidebarCommunity isCollapsed={effectiveIsCollapsed} />} */}
         <SidebarUserMenu isCollapsed={effectiveIsCollapsed} />
       </div>
     </div>
