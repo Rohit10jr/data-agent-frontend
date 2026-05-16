@@ -84,20 +84,36 @@ export function SchemaViewer({ slug }: Props) {
 					<SchemaChatPane turns={turns} stream={stream} hasSlug={!!slug} />
 				</Panel>
 
+				{/*
+				Near-invisible resize handle (nao-stories style): generous 12px hit
+				zone with no visible bar; a thin 1px rail fades in only on hover/drag.
+				*/}
 				<PanelResizeHandle
 					className={cn(
-						'w-1.5 bg-border hover:bg-foreground/20 transition-colors cursor-col-resize',
-						'data-[resize-handle-state=drag]:bg-foreground/30',
+						'group w-3 cursor-col-resize flex items-center justify-center',
+						'transition-colors',
 					)}
-				/>
-
-				<Panel defaultSize={55} minSize={30} className='min-w-0'>
-					<SchemaArtifactPanel
-						tables={tables}
-						sqlPlain={sqlTable}
-						seedPlain={sqlSeedData}
-						projectId={project.data?.id}
+				>
+					<div
+						className={cn(
+							'h-12 w-0.5 rounded-full bg-border opacity-60 transition-[opacity,background-color]',
+							'group-hover:opacity-100 group-hover:bg-foreground/30',
+							'group-data-[resize-handle-state=drag]:opacity-100 group-data-[resize-handle-state=drag]:bg-foreground/50',
+						)}
 					/>
+				</PanelResizeHandle>
+
+				<Panel defaultSize={55} minSize={30} className='min-w-0 py-4 pr-4'>
+					{/* Floating white "artifact" card — bg-background + shadow + rounded
+					    + thin border. Inner content is unchanged. */}
+					<div className='h-full bg-background border border-border shadow-lg rounded-2xl overflow-hidden'>
+						<SchemaArtifactPanel
+							tables={tables}
+							sqlPlain={sqlTable}
+							seedPlain={sqlSeedData}
+							projectId={project.data?.id}
+						/>
+					</div>
 				</Panel>
 			</PanelGroup>
 		</div>
@@ -197,7 +213,7 @@ function SchemaArtifactPanel({
 
 	return (
 		<div className='flex flex-col h-full min-h-0 min-w-0'>
-			<div className='flex items-center gap-1 px-3 py-2 border-b border-border shrink-0'>
+			<div className='flex items-center gap-1 px-3 py-2 shrink-0'>
 				{TABS.map((t) => (
 					<button
 						key={t.id}
@@ -206,8 +222,8 @@ function SchemaArtifactPanel({
 						className={cn(
 							'px-3 py-1 text-xs rounded-md transition-colors',
 							tab === t.id
-								? 'bg-foreground text-background'
-								: 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent',
+								? 'bg-sidebar-accent text-foreground font-medium'
+								: 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60',
 						)}
 					>
 						{t.label}
