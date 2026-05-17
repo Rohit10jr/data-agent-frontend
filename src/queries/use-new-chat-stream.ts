@@ -23,6 +23,7 @@ import {
 	type ListChatResponse,
 	type ChatListItem,
 } from '@/queries/use-chat-list-query';
+import { chatActivityStore } from '@/stores/chat-activity';
 
 export function useNewChatStream() {
 	const qc = useQueryClient();
@@ -95,6 +96,8 @@ export function useNewChatStream() {
 				case 'thread_created': {
 					// Stash the thread id but defer navigation until first content.
 					threadIdRef.current = event.thread_id;
+					// Flip the sidebar running indicator now that we have an id.
+					chatActivityStore.setRunning(event.thread_id, true);
 					break;
 				}
 
@@ -235,10 +238,13 @@ export function useNewChatStream() {
 				abortRef.current = null;
 				setIsStreaming(false);
 
+				// Clear the sidebar spinner for this thread (set on thread_created).
+				const tid = threadIdRef.current;
+				if (tid) chatActivityStore.setRunning(tid, false);
+
 				// Only hand off the cache if we actually navigated to the detail page.
 				// If the run failed before any content arrived, the backend has deleted
 				// the empty ChatSession and the user is still on home — no cache to seed.
-				const tid = threadIdRef.current;
 				if (tid && hasNavigatedRef.current) {
 					const messagesSnapshot: HistoryMessage[] = [];
 					if (liveUser) messagesSnapshot.push(liveUser);

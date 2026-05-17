@@ -14,6 +14,7 @@ import {
 	type HistoryPart,
 } from '@/queries/use-chat-history-query';
 import { CHAT_LIST_QUERY_KEY, type ListChatResponse } from '@/queries/use-chat-list-query';
+import { chatActivityStore } from '@/stores/chat-activity';
 
 interface UseChatStreamOptions {
 	threadId: string;
@@ -151,6 +152,8 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 				created_at: null,
 			});
 			setIsStreaming(true);
+			// Surface a per-thread running indicator in the sidebar.
+			chatActivityStore.setRunning(threadId, true);
 
 			const controller = new AbortController();
 			abortRef.current = controller;
@@ -170,6 +173,7 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 			} finally {
 				abortRef.current = null;
 				setIsStreaming(false);
+				chatActivityStore.setRunning(threadId, false);
 
 				// Refetch the canonical history, then clear live state. This avoids
 				// a flicker where the live message disappears before the new history
