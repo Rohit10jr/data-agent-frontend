@@ -93,12 +93,14 @@ function MessageBubble({ message }: { message: HistoryMessage }) {
 				message.parts.map((part, i) => <PartRenderer key={i} part={part} isUser={isUser} />)
 			)}
 
+			{/* Per-message token usage line — hidden for now; full usage is in /settings/usage.
 			{message.usage?.total_tokens && !isUser && (
 				<p className='text-xs text-muted-foreground'>
 					{message.usage.input_tokens} in · {message.usage.output_tokens} out ·{' '}
 					{message.usage.total_tokens} tokens
 				</p>
 			)}
+			*/}
 		</MessageRow>
 	);
 }
