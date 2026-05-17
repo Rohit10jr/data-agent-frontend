@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { trpc } from '../main';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { handleGithubSignIn, handleGoogleSignIn } from '@/lib/auth-client';
 import GithubIcon from '@/components/icons/github-icon.svg';
 import GoogleIcon from '@/components/icons/google-icon.svg';
@@ -86,9 +87,19 @@ export function AuthForm({
 
 				{serverError && <p className='text-red-500 text-center text-sm'>{serverError}</p>}
 
-				<form.Subscribe selector={(state: { canSubmit: boolean }) => state.canSubmit}>
-					{(canSubmit: boolean) => (
-						<Button type='submit' className='w-full h-11' disabled={!canSubmit}>
+				<form.Subscribe
+					selector={(state: { canSubmit: boolean; isSubmitting: boolean }) => ({
+						canSubmit: state.canSubmit,
+						isSubmitting: state.isSubmitting,
+					})}
+				>
+					{({ canSubmit, isSubmitting }: { canSubmit: boolean; isSubmitting: boolean }) => (
+						<Button
+							type='submit'
+							className='w-full h-11'
+							disabled={!canSubmit || isSubmitting}
+						>
+							{isSubmitting && <Spinner className='size-4' />}
 							{submitText}
 						</Button>
 					)}

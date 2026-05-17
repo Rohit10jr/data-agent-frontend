@@ -1,10 +1,9 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from '@tanstack/react-form';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { signIn } from '@/lib/auth-client';
 import { AuthForm, FormTextField } from '@/components/auth-form';
-import { trpc } from '@/main';
 
 export const Route = createFileRoute('/login')({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -19,9 +18,6 @@ function Login() {
 	const { error: oauthError } = Route.useSearch();
 	const [serverError, setServerError] = useState<string | undefined>(oauthError);
 	const [unverifiedEmail, setUnverifiedEmail] = useState<string | undefined>();
-	const isSmtpSetup = useQuery(trpc.authConfig.smtp.isSetup.queryOptions());
-	const config = useQuery(trpc.system.getPublicConfig.queryOptions());
-	const isCloud = config.data?.naoMode === 'cloud';
 
 	const form = useForm({
 		defaultValues: { email: '', password: '' },
@@ -84,13 +80,11 @@ function Login() {
 				</div>
 			)}
 
-			{isSmtpSetup.data && (
-				<div className='text-right'>
-					<Link to='/forgot-password' className='text-sm underline underline-offset-4'>
-						Forgot password?
-					</Link>
-				</div>
-			)}
+			<div className='text-right'>
+				<Link to='/forgot-password' className='text-sm underline underline-offset-4'>
+					Forgot password?
+				</Link>
+			</div>
 		</AuthForm>
 	);
 }
