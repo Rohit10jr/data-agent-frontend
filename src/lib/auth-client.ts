@@ -111,23 +111,19 @@ export const signUp = {
 interface VerifyEmailResponse {
 	success: boolean;
 	message: string;
-	access: string;
-	refresh: string;
-	user: { id: number; email: string; first_name: string; last_name: string };
 }
 
 /**
- * Calls Django /api/email/verify/. On success, stores the issued JWT pair
- * so the user is auto-logged-in (no separate /login step needed).
+ * Calls Django /api/email/verify/. On success the email is marked verified
+ * server-side; the caller then shows a "log in now" CTA. We deliberately do
+ * NOT auto-log-in — the user may have opened the verification link on a
+ * different device from the one they want to use the app on.
  */
-export const verifyEmail = async (
+export const verifyEmail = (
 	uid: string,
 	token: string,
-): Promise<VerifyEmailResponse> => {
-	const data = await api.post<VerifyEmailResponse>('/email/verify/', { uid, token });
-	tokens.set({ access: data.access, refresh: data.refresh });
-	return data;
-};
+): Promise<VerifyEmailResponse> =>
+	api.post<VerifyEmailResponse>('/email/verify/', { uid, token });
 
 export const resendVerification = (email: string) =>
 	api.post<{ message: string }>('/email/verify/resend/', { email });

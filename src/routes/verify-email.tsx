@@ -1,10 +1,9 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { verifyEmail, resendVerification } from '@/lib/auth-client';
 import { ApiError } from '@/lib/api';
-import NaoLogo from '@/components/icons/nao-full-logo.svg';
+import NaoLogo from '@/components/icons/nao-logo.svg';
 
 type VerifyState = 'verifying' | 'success' | 'error';
 
@@ -18,8 +17,6 @@ export const Route = createFileRoute('/verify-email')({
 
 function VerifyEmail() {
 	const { uid, token } = Route.useSearch();
-	const navigate = useNavigate();
-	const qc = useQueryClient();
 	const [state, setState] = useState<VerifyState>('verifying');
 	const [errorMessage, setErrorMessage] = useState<string>('');
 	const ranOnce = useRef(false);
@@ -40,20 +37,14 @@ function VerifyEmail() {
 		}
 
 		verifyEmail(uid, token)
-			.then(() => {
-				setState('success');
-				// Refresh the session so route guards pick up the new login state.
-				qc.invalidateQueries({ queryKey: ['session'] });
-				// Brief pause so the user sees the success message, then drop them in.
-				setTimeout(() => navigate({ to: '/' }), 1200);
-			})
+			.then(() => setState('success'))
 			.catch((err) => {
 				setState('error');
 				setErrorMessage(
 					err instanceof ApiError ? err.message : 'Verification failed. Please try again.',
 				);
 			});
-	}, [uid, token, navigate, qc]);
+	}, [uid, token]);
 
 	const handleResend = async () => {
 		if (!resendEmail) {
@@ -75,7 +66,7 @@ function VerifyEmail() {
 	return (
 		<div className='mx-auto w-full max-w-md p-8 my-auto'>
 			<div className='flex flex-row items-end mb-8'>
-				<NaoLogo className='w-20 h-auto' />
+				<NaoLogo className='h-8 w-auto' />
 				<span className='text-muted-foreground text-sm mx-4 border-l-1 border-border h-4'></span>
 				<h1 className='text-md font-semibold uppercase leading-none'>
 					{state === 'verifying' && 'Verifying'}
@@ -89,10 +80,16 @@ function VerifyEmail() {
 			)}
 
 			{state === 'success' && (
-				<div className='space-y-3'>
+				<div className='space-y-6'>
 					<p className='text-sm text-muted-foreground'>
-						Email verified. Signing you in…
+						Your email has been verified. You can now log in on the device you'd
+						like to use.
 					</p>
+					<Button asChild className='w-full h-11'>
+						<Link to='/login' search={{ error: undefined }}>
+							Log in
+						</Link>
+					</Button>
 				</div>
 			)}
 

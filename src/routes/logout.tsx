@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { signOut } from '@/lib/auth-client';
-import NaoLogo from '@/components/icons/nao-full-logo.svg';
+import NaoLogo from '@/components/icons/nao-logo.svg';
 
 export const Route = createFileRoute('/logout')({
 	component: LogoutPage,
@@ -33,7 +33,7 @@ function LogoutPage() {
 	return (
 		<div className='mx-auto w-full max-w-md p-8 my-auto'>
 			<div className='flex flex-row items-end mb-8'>
-				<NaoLogo className='w-20 h-auto' />
+				<NaoLogo className='h-8 w-auto' />
 				<span className='text-muted-foreground text-sm mx-4 border-l-1 border-border h-4'></span>
 				<h1 className='text-md font-semibold uppercase leading-none'>Logging out</h1>
 			</div>
