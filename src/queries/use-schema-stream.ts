@@ -19,6 +19,7 @@ import {
 	type SchemaProjectListItem,
 	schemaProjectQueryKey,
 } from '@/queries/use-schema-list-query';
+import { chatActivityStore } from '@/stores/chat-activity';
 
 export interface LiveTurn {
 	role: 'user' | 'assistant';
@@ -110,6 +111,8 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 			switch (event.type) {
 				case 'thread_created': {
 					slugRef.current = event.slug;
+					// Flip the sidebar running indicator for this schema project.
+					chatActivityStore.setRunning(event.slug, true);
 					break;
 				}
 
@@ -183,6 +186,9 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 			setLiveSqlTable(null);
 			setLiveSqlSeed(null);
 			setIsStreaming(true);
+			// Refine path: slug is already known → light up the sidebar spinner now.
+			// New-project path: handleEvent will flip it on `thread_created` instead.
+			if (slug) chatActivityStore.setRunning(slug, true);
 
 			const controller = new AbortController();
 			abortRef.current = controller;
@@ -204,8 +210,11 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				setIsStreaming(false);
 				setCurrentNode(null);
 
-				// Refetch the canonical project so the UI shows the persisted state.
+				// Clear the sidebar spinner (covers both refine + new-project paths).
 				const finalSlug = slugRef.current;
+				if (finalSlug) chatActivityStore.setRunning(finalSlug, false);
+
+				// Refetch the canonical project so the UI shows the persisted state.
 				if (finalSlug && hasNavigatedRef.current) {
 					try {
 						await qc.invalidateQueries({ queryKey: schemaProjectQueryKey(finalSlug) });

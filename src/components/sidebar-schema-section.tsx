@@ -12,9 +12,11 @@ import {
 	useSchemaListQuery,
 	useSchemaRenameMutation,
 } from '@/queries/use-schema-list-query';
+import { useChatActivity } from '@/hooks/use-chat-activity';
 import { useTimeAgo } from '@/hooks/use-time-ago';
 import { cn, hideIf } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -104,6 +106,7 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 	const rename = useSchemaRenameMutation();
 	const remove = useSchemaDeleteMutation();
 	const timeAgo = useTimeAgo(project.updatedAt);
+	const activity = useChatActivity(project.slug);
 	const [draft, setDraft] = useState(project.name ?? 'New Project');
 	const [isRenaming, setIsRenaming] = useState(false);
 
@@ -160,9 +163,13 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 			) : (
 				<>
 					<div className='truncate text-sm mr-auto'>{project.name ?? 'New Project'}</div>
-					<div className='text-xs text-muted-foreground whitespace-nowrap'>
-						{timeAgo.humanReadable}
-					</div>
+					{activity.running ? (
+						<Spinner className='size-3.5 shrink-0' />
+					) : (
+						<div className='text-xs text-muted-foreground whitespace-nowrap'>
+							{timeAgo.humanReadable}
+						</div>
+					)}
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
