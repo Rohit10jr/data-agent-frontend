@@ -3,7 +3,7 @@
 // server-loaded history. On `done`, refetches the history so the live message
 // is replaced with the canonical version from the DB.
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { streamSqlAgent, type AgentEvent } from '@/lib/django-stream';
@@ -175,6 +175,14 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 				setIsStreaming(false);
 				chatActivityStore.setRunning(threadId, false);
 
+				// Backend always finishes producing the response (even when the
+				// frontend aborts the SSE), so we always flag unread if the user
+				// isn't currently on this chat — the response will be there when
+				// they reopen it.
+				if (window.location.pathname !== `/${threadId}`) {
+					chatActivityStore.setUnread(threadId, true);
+				}
+
 				// Refetch the canonical history, then clear live state. This avoids
 				// a flicker where the live message disappears before the new history
 				// arrives.
@@ -193,6 +201,16 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 
 	const abort = useCallback(() => {
 		abortRef.current?.abort();
+	}, []);
+
+	// Cleanup-on-unmount: if the user leaves this chat mid-stream, abort the
+	// client-side SSE. The backend keeps running and persists the full response
+	// regardless, so reopening the chat shows the completed turn — the finally
+	// block above flags it unread for that exact reason.
+	useEffect(() => {
+		return () => {
+			abortRef.current?.abort();
+		};
 	}, []);
 
 	return {

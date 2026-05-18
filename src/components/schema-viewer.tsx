@@ -32,6 +32,7 @@ import {
 } from '@/queries/use-schema-stream';
 import { ChatComposer } from '@/components/chat-composer';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
+import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
 
 interface Column {
@@ -72,6 +73,11 @@ function parseTables(schemaTable: string | null): ParsedTable[] {
 export function SchemaViewer({ slug }: Props) {
 	const project = useSchemaProjectQuery(slug);
 	const stream = useSchemaStream({ slug });
+
+	// Clear the sidebar unread dot when this project is actually opened.
+	useEffect(() => {
+		if (slug) chatActivityStore.setUnread(slug, false);
+	}, [slug]);
 
 	const turns = mergeHistoryWithLive(project.data?.messages, stream);
 	const { schemaTable, sqlTable, sqlSeedData } = pickLatestArtifacts(project.data, stream);

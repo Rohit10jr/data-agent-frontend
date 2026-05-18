@@ -242,6 +242,12 @@ export function useNewChatStream() {
 				const tid = threadIdRef.current;
 				if (tid) chatActivityStore.setRunning(tid, false);
 
+				// Always mark unread when the user isn't on the new thread's URL —
+				// the backend finishes the response even if the client aborts.
+				if (tid && window.location.pathname !== `/${tid}`) {
+					chatActivityStore.setUnread(tid, true);
+				}
+
 				// Only hand off the cache if we actually navigated to the detail page.
 				// If the run failed before any content arrived, the backend has deleted
 				// the empty ChatSession and the user is still on home — no cache to seed.

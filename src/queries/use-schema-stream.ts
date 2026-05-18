@@ -4,7 +4,7 @@
 // latest-known schema/sql/seed — and merges them with the persisted project
 // data on completion.
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
@@ -214,6 +214,12 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				const finalSlug = slugRef.current;
 				if (finalSlug) chatActivityStore.setRunning(finalSlug, false);
 
+				// Always mark unread when the user isn't on this project's URL —
+				// the backend finishes the response even if the client aborts.
+				if (finalSlug && window.location.pathname !== `/schema/${finalSlug}`) {
+					chatActivityStore.setUnread(finalSlug, true);
+				}
+
 				// Refetch the canonical project so the UI shows the persisted state.
 				if (finalSlug && hasNavigatedRef.current) {
 					try {
@@ -234,6 +240,17 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	);
 
 	const abort = useCallback(() => abortRef.current?.abort(), []);
+
+	// Cleanup-on-unmount — only when slug was provided at hook init (refine
+	// case). For the new-project flow (no slug), the home page mounts the hook
+	// and then unmounts on navigation to /schema/<slug>; aborting there would
+	// kill the stream the user explicitly wants to continue.
+	useEffect(() => {
+		if (!slug) return;
+		return () => {
+			abortRef.current?.abort();
+		};
+	}, [slug]);
 
 	return {
 		...liveState,
