@@ -94,4 +94,8 @@ export const connectionsApi = {
 		const res = await api.post<DjangoListResponse<Connection>>(`/connection/${id}/refresh/`);
 		return res.data;
 	},
+
+	restoreSamples: async (): Promise<{ created: number }> => {
+		return api.post<{ created: number }>('/connections/restore-samples/');
+	},
 };

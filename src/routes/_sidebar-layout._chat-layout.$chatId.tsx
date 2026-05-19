@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { ChatComposer } from '@/components/chat-composer';
 import { ChartRenderer } from '@/components/chart-renderer';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
+import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
 
 const CHART_PREFIX = 'CHART_JSON:';
@@ -29,6 +30,11 @@ function ChatDetailPage() {
 	const { messages, sendMessage, abort, isStreaming, isLoading, error, streamError } = useChatStream({
 		threadId: chatId,
 	});
+
+	// Clear the unread dot when the user actually opens the chat.
+	useEffect(() => {
+		chatActivityStore.setUnread(chatId, false);
+	}, [chatId]);
 
 	// Auto-scroll to bottom on new content.
 	const bottomRef = useRef<HTMLDivElement>(null);

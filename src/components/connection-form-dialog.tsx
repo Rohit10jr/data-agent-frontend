@@ -49,7 +49,7 @@ const SOURCE_OPTIONS: { value: SourceType; label: string; hint: string }[] = [
   {
     value: "excel",
     label: "Excel file",
-    hint: ".xlsx — each sheet becomes a table",
+    hint: ".xlsx / .xlsm — each sheet becomes a table",
   },
   {
     value: "sas7bdat",
@@ -61,9 +61,23 @@ const SOURCE_OPTIONS: { value: SourceType; label: string; hint: string }[] = [
 const FILE_TYPE_HINTS: Record<Exclude<SourceType, "database">, string> = {
   sqlite: ".sqlite,.db",
   csv: ".csv",
-  excel: ".xlsx,.xls",
+  excel: ".xlsx,.xlsm",
   sas7bdat: ".sas7bdat",
 };
+
+// Source of truth for what each upload type will accept on the server.
+// Keep aligned with the backend's FILE_EXTENSIONS in connection_views.py.
+const FILE_TYPE_EXTENSIONS: Record<Exclude<SourceType, "database">, string[]> = {
+  sqlite: [".sqlite", ".db"],
+  csv: [".csv"],
+  excel: [".xlsx", ".xlsm"],
+  sas7bdat: [".sas7bdat"],
+};
+
+function extensionOf(filename: string): string {
+  const dot = filename.lastIndexOf(".");
+  return dot === -1 ? "" : filename.slice(dot).toLowerCase();
+}
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
@@ -190,6 +204,14 @@ export function ConnectionFormDialog({
       }
       if (file.size > MAX_FILE_SIZE) {
         setError("File exceeds 500 MB limit");
+        return;
+      }
+      const allowed = FILE_TYPE_EXTENSIONS[sourceType];
+      const ext = extensionOf(file.name);
+      if (!allowed.includes(ext)) {
+        setError(
+          `${sourceType === "excel" ? "Excel" : sourceType.toUpperCase()} files must be ${allowed.join(" or ")} (got ${ext || "no extension"}).`,
+        );
         return;
       }
       createFileMut.mutate();

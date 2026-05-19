@@ -162,6 +162,7 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 				/>
 			) : (
 				<>
+					{activity.unread && <span className='size-1.5 shrink-0 rounded-full bg-primary' />}
 					<div className='truncate text-sm mr-auto'>{project.name ?? 'New Project'}</div>
 					{activity.running ? (
 						<Spinner className='size-3.5 shrink-0' />

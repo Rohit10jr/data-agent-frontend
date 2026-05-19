@@ -60,6 +60,13 @@ export function useNewChatStream() {
 		if (!tid) return;
 		hasNavigatedRef.current = true;
 
+		// Defensive: ensure the activity store has running=true at the moment
+		// the sidebar row is added. setRunning fired earlier on `thread_created`,
+		// but this guards against any timing edge where the optimistic chat
+		// row mounts before the store update has propagated. setRunning is
+		// idempotent — it no-ops if already true.
+		chatActivityStore.setRunning(tid, true);
+
 		qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
 			if (!prev) return prev;
 			if (prev.chats.some((c) => c.id === tid)) return prev;
@@ -241,6 +248,12 @@ export function useNewChatStream() {
 				// Clear the sidebar spinner for this thread (set on thread_created).
 				const tid = threadIdRef.current;
 				if (tid) chatActivityStore.setRunning(tid, false);
+
+				// Always mark unread when the user isn't on the new thread's URL —
+				// the backend finishes the response even if the client aborts.
+				if (tid && window.location.pathname !== `/${tid}`) {
+					chatActivityStore.setUnread(tid, true);
+				}
 
 				// Only hand off the cache if we actually navigated to the detail page.
 				// If the run failed before any content arrived, the backend has deleted
