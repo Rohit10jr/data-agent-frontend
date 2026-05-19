@@ -1,4 +1,4 @@
-import { Ellipsis, Pencil, TrashIcon } from 'lucide-react';
+import { Ellipsis, Pencil, Star, StarOff, TrashIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -72,6 +72,39 @@ export function ChatListItem({ chat }: Props) {
 		},
 	});
 
+	// PATCH /api/threads/<thread_id>/  { is_starred }  → toggle starred state.
+	// Optimistic: flip the flag in the cached list immediately so the sidebar
+	// section moves the chat between Starred/Chats without waiting for the API.
+	const toggleStar = useMutation({
+		mutationFn: (vars: { chatId: string; isStarred: boolean }) =>
+			api.patch<{ thread_id: string; is_starred: boolean }>(`/threads/${vars.chatId}/`, {
+				is_starred: vars.isStarred,
+			}),
+		onMutate: (vars) => {
+			const previous = qc.getQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY);
+			qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
+				if (!prev) return prev;
+				return {
+					...prev,
+					chats: prev.chats.map((c) =>
+						c.id === vars.chatId ? { ...c, isStarred: vars.isStarred } : c,
+					),
+				};
+			});
+			return { previous };
+		},
+		onError: (err, _vars, context) => {
+			if (context?.previous) {
+				qc.setQueryData(CHAT_LIST_QUERY_KEY, context.previous);
+			}
+			const message = err instanceof ApiError ? err.message : 'Failed to update star';
+			alert(message);
+		},
+		onSettled: () => {
+			qc.invalidateQueries({ queryKey: CHAT_LIST_QUERY_KEY });
+		},
+	});
+
 	const handleTitleRenameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		setTitle(e.target.value);
 	};
@@ -91,6 +124,10 @@ export function ChatListItem({ chat }: Props) {
 
 	const handleRenameSelect = () => {
 		setIsRenaming(!isRenaming);
+	};
+
+	const handleStarSelect = () => {
+		toggleStar.mutate({ chatId: chat.id, isStarred: !chat.isStarred });
 	};
 
 	const handleDeleteSelect = () => {
@@ -150,6 +187,10 @@ export function ChatListItem({ chat }: Props) {
 
 						<DropdownMenuContent onClick={(e) => e.stopPropagation()}>
 							<DropdownMenuGroup>
+								<DropdownMenuItem onSelect={handleStarSelect}>
+									{chat.isStarred ? <StarOff /> : <Star />}
+									{chat.isStarred ? 'Unstar' : 'Star'}
+								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={handleRenameSelect}>
 									<Pencil />
 									Rename
