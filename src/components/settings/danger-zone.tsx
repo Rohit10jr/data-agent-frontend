@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
 	AlertDialog,
@@ -13,26 +13,33 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SettingsCard } from '@/components/ui/settings-card';
-import { trpc } from '@/main';
+import { api, ApiError } from '@/lib/api';
+import { CHAT_LIST_QUERY_KEY, type ListChatResponse } from '@/queries/use-chat-list-query';
 
 export function DangerZone() {
 	const [isOpen, setIsOpen] = useState(false);
 	const navigate = useNavigate();
+	const qc = useQueryClient();
 
-	const deleteAllNonStarred = useMutation(
-		trpc.chat.deleteAllNonStarred.mutationOptions({
-			onSuccess: (_data, _, __, ctx) => {
-				ctx.client.setQueryData(trpc.chat.list.queryKey(), (prev) => {
-					if (!prev) {
-						return prev;
-					}
-					return { ...prev, chats: prev.chats.filter((c) => c.isStarred) };
-				});
-				setIsOpen(false);
-				navigate({ to: '/' });
-			},
-		}),
-	);
+	// DELETE /api/threads/non-starred/  →  { count: N }
+	// Wipes every non-starred chat the caller owns. After success, drop the
+	// non-starred entries from the cached chat list and route home — the user
+	// may have been viewing one of the chats that just got deleted.
+	const deleteAllNonStarred = useMutation({
+		mutationFn: () => api.delete<{ count: number }>('/threads/non-starred/'),
+		onSuccess: () => {
+			qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
+				if (!prev) return prev;
+				return { ...prev, chats: prev.chats.filter((c) => c.isStarred) };
+			});
+			setIsOpen(false);
+			navigate({ to: '/' });
+		},
+		onError: (err) => {
+			const message = err instanceof ApiError ? err.message : 'Failed to delete chats';
+			alert(message);
+		},
+	});
 
 	return (
 		<>
