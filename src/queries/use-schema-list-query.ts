@@ -56,6 +56,7 @@ export interface SchemaProjectDetail {
 	schema_table: string | null;
 	sql_table: string | null;
 	sql_seed_data: string | null;
+	sql_edited_manually: boolean;
 	created_at: string;
 	updated_at: string;
 	messages: SchemaHistoryTurn[];
@@ -118,6 +119,35 @@ export const useSchemaStarMutation = () => {
 		},
 		onSettled: () => {
 			qc.invalidateQueries({ queryKey: SCHEMA_LIST_QUERY_KEY });
+		},
+	});
+};
+
+// PATCH /api/schema-project/<slug>/  { sql_table?, sql_seed_data? }
+// Persists a manual edit of the generated SQL or seed data. The backend flips
+// `sql_edited_manually=true` and clears cached dialect variants so the next
+// dialect switch re-transpiles from the new source.
+export const useSchemaSqlEditMutation = () => {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			slug,
+			sqlTable,
+			sqlSeedData,
+		}: {
+			slug: string;
+			sqlTable?: string | null;
+			sqlSeedData?: string | null;
+		}) => {
+			const body: Record<string, string | null> = {};
+			if (sqlTable !== undefined) body.sql_table = sqlTable;
+			if (sqlSeedData !== undefined) body.sql_seed_data = sqlSeedData;
+			return api.patch<SchemaProjectDetail>(`/schema-project/${slug}/`, body);
+		},
+		onSuccess: (data, vars) => {
+			qc.setQueryData<SchemaProjectDetail>(schemaProjectQueryKey(vars.slug), (prev) =>
+				prev ? { ...prev, ...data } : prev,
+			);
 		},
 	});
 };
