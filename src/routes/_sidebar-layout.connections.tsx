@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Database, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionFormDialog } from '@/components/connection-form-dialog';
 import { connectionsApi, type Connection } from '@/lib/connections';
@@ -30,6 +30,16 @@ function ConnectionsPage() {
 		onSuccess: () => qc.invalidateQueries({ queryKey: ['connections'] }),
 	});
 
+	const restoreSamplesMut = useMutation({
+		mutationFn: () => connectionsApi.restoreSamples(),
+		onSuccess: ({ created }) => {
+			qc.invalidateQueries({ queryKey: ['connections'] });
+			if (created === 0) {
+				alert('Sample databases are already in your connections list.');
+			}
+		},
+	});
+
 	const openCreate = () => {
 		setEditingConnection(undefined);
 		setFormOpen(true);
@@ -56,10 +66,21 @@ function ConnectionsPage() {
 							Connect databases the agent can query.
 						</p>
 					</div>
-					<Button onClick={openCreate}>
-						<Plus className='size-4' />
-						New connection
-					</Button>
+					<div className='flex items-center gap-2'>
+						<Button
+							variant='outline'
+							onClick={() => restoreSamplesMut.mutate()}
+							disabled={restoreSamplesMut.isPending}
+							title='Re-add the sample databases (e.g. Netflix) if you deleted them'
+						>
+							<Sparkles className='size-4' />
+							{restoreSamplesMut.isPending ? 'Restoring…' : 'Restore samples'}
+						</Button>
+						<Button onClick={openCreate}>
+							<Plus className='size-4' />
+							New connection
+						</Button>
+					</div>
 				</div>
 
 				{isLoading && <p className='text-sm text-muted-foreground'>Loading…</p>}

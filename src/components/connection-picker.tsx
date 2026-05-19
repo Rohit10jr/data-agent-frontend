@@ -66,7 +66,14 @@ export function ConnectionPicker({ value, onChange, disabled }: ConnectionPicker
 						>
 							<Database className='size-4 shrink-0 text-muted-foreground' />
 							<div className='flex-1 min-w-0'>
-								<div className='font-medium truncate'>{c.name}</div>
+								<div className='font-medium truncate flex items-center gap-1.5'>
+									<span className='truncate'>{c.name}</span>
+									{c.is_sample && (
+										<span className='shrink-0 text-[9px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-sidebar-accent text-muted-foreground'>
+											Sample
+										</span>
+									)}
+								</div>
 								<div className='text-[10px] text-muted-foreground uppercase'>{c.type}</div>
 							</div>
 							{c.id === value && <Check className='size-4 shrink-0' />}
