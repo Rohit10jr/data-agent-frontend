@@ -17,12 +17,24 @@ import {
 	type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Database, KeyRound, Link2, Loader2 } from 'lucide-react';
+import {
+	AlertTriangle,
+	Check,
+	Database,
+	Download,
+	KeyRound,
+	Link2,
+	Loader2,
+	Pencil,
+	X,
+} from 'lucide-react';
+import Editor from '@monaco-editor/react';
 
 import {
 	type SqlDialect,
 	type SqlVariantResponse,
 	useSchemaProjectQuery,
+	useSchemaSqlEditMutation,
 	useSchemaVariantMutation,
 } from '@/queries/use-schema-list-query';
 import {
@@ -118,6 +130,9 @@ export function SchemaViewer({ slug }: Props) {
 							sqlPlain={sqlTable}
 							seedPlain={sqlSeedData}
 							projectId={project.data?.id}
+							projectName={project.data?.name ?? null}
+							slug={slug}
+							sqlEditedManually={project.data?.sql_edited_manually ?? false}
 						/>
 					</div>
 				</Panel>
@@ -203,11 +218,17 @@ function SchemaArtifactPanel({
 	sqlPlain,
 	seedPlain,
 	projectId,
+	projectName,
+	slug,
+	sqlEditedManually,
 }: {
 	tables: ParsedTable[];
 	sqlPlain: string | null;
 	seedPlain: string | null;
 	projectId: number | undefined;
+	projectName: string | null;
+	slug: string | undefined;
+	sqlEditedManually: boolean;
 }) {
 	const [tab, setTab] = useState<PanelTab>('tables');
 
@@ -238,12 +259,40 @@ function SchemaArtifactPanel({
 			</div>
 
 			<div className='flex-1 overflow-y-auto overflow-x-hidden p-4'>
-				{tab === 'tables' && <TablesTab tables={tables} />}
-				{tab === 'er' && <ErTab tables={tables} />}
+				{tab === 'tables' && (
+					<>
+						{sqlEditedManually && <ManualEditBadge />}
+						<TablesTab tables={tables} />
+					</>
+				)}
+				{tab === 'er' && (
+					<>
+						{sqlEditedManually && <ManualEditBadge />}
+						<ErTab tables={tables} />
+					</>
+				)}
 				{tab === 'sql' && (
-					<SqlTab sqlPlain={sqlPlain} seedPlain={seedPlain} projectId={projectId} />
+					<SqlTab
+						sqlPlain={sqlPlain}
+						seedPlain={seedPlain}
+						projectId={projectId}
+						projectName={projectName}
+						slug={slug}
+					/>
 				)}
 			</div>
+		</div>
+	);
+}
+
+// Small amber banner shown on Tables / ER tabs when the user has hand-edited
+// the SQL since the last agent regeneration — those views are derived from
+// `schema_json` and may have diverged from the edited SQL.
+function ManualEditBadge() {
+	return (
+		<div className='mb-3 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2'>
+			<AlertTriangle className='size-3.5 shrink-0' />
+			<span>SQL was edited manually — this view may be out of date.</span>
 		</div>
 	);
 }
@@ -303,10 +352,14 @@ function SqlTab({
 	sqlPlain,
 	seedPlain,
 	projectId,
+	projectName,
+	slug,
 }: {
 	sqlPlain: string | null;
 	seedPlain: string | null;
 	projectId: number | undefined;
+	projectName: string | null;
+	slug: string | undefined;
 }) {
 	const [dialect, setDialect] = useState<'plain' | SqlDialect>('plain');
 	const [variants, setVariants] = useState<Partial<Record<SqlDialect, SqlVariantResponse>>>({});
@@ -330,9 +383,40 @@ function SqlTab({
 		dialect === 'plain' ? seedPlain : variants[dialect]?.sql_seed_data ?? null;
 	const hasAnything = !!(displaySql || displaySeed);
 
+	// Editing is only meaningful for the plain (source) SQL — transpiled
+	// variants are regenerated from the source on demand.
+	const canEdit = dialect === 'plain' && !!slug;
+
+	const handleDownload = () => {
+		const parts: string[] = [];
+		if (displaySql) parts.push(`-- Tables\n${displaySql}`);
+		if (displaySeed) parts.push(`-- Seed data\n${displaySeed}`);
+		const blob = new Blob([parts.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		const safeName = (projectName || 'schema').replace(/[^a-z0-9_-]/gi, '_');
+		const suffix = dialect === 'plain' ? '' : `.${dialect}`;
+		a.download = `${safeName}${suffix}.sql`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	};
+
 	return (
 		<div className='space-y-3'>
-			<div className='flex items-center justify-end'>
+			<div className='flex items-center justify-between gap-2'>
+				<button
+					type='button'
+					onClick={handleDownload}
+					disabled={!hasAnything}
+					className='inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-border hover:bg-sidebar-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+					title='Download as .sql file'
+				>
+					<Download className='size-3.5' />
+					Download .sql
+				</button>
 				<DialectPicker
 					value={dialect}
 					onChange={setDialect}
@@ -345,8 +429,24 @@ function SqlTab({
 				<EmptyHint text='SQL and seed data will appear here once the agent generates them.' />
 			) : (
 				<>
-					{displaySql && <CodeBlock title='CREATE TABLE' language='sql' body={displaySql} />}
-					{displaySeed && <CodeBlock title='Seed data' language='sql' body={displaySeed} />}
+					{displaySql !== null && (
+						<EditableCodeBlock
+							title='CREATE TABLE'
+							body={displaySql}
+							slug={slug}
+							canEdit={canEdit}
+							field='sqlTable'
+						/>
+					)}
+					{displaySeed !== null && (
+						<EditableCodeBlock
+							title='Seed data'
+							body={displaySeed}
+							slug={slug}
+							canEdit={canEdit}
+							field='sqlSeedData'
+						/>
+					)}
 				</>
 			)}
 
@@ -390,22 +490,117 @@ function DialectPicker({
 	);
 }
 
-function CodeBlock({
+// SQL block with an optional inline Monaco editor. View mode renders the
+// existing pre-formatted text; Edit flips to Monaco and exposes Save/Cancel.
+// `canEdit` is false for transpiled dialects (Postgres / MySQL / …) so users
+// don't try to edit derived output.
+function EditableCodeBlock({
 	title,
-	language,
 	body,
+	slug,
+	canEdit,
+	field,
 }: {
 	title: string;
-	language: string;
 	body: string;
+	slug: string | undefined;
+	canEdit: boolean;
+	field: 'sqlTable' | 'sqlSeedData';
 }) {
+	const editMutation = useSchemaSqlEditMutation();
+	const [isEditing, setIsEditing] = useState(false);
+	const [draft, setDraft] = useState(body);
+
+	// When the body changes from outside (agent regeneration, project re-fetch)
+	// and we're not actively editing, mirror it into the draft.
+	useEffect(() => {
+		if (!isEditing) setDraft(body);
+	}, [body, isEditing]);
+
+	const handleSave = async () => {
+		if (!slug) return;
+		await editMutation.mutateAsync({
+			slug,
+			...(field === 'sqlTable' ? { sqlTable: draft } : { sqlSeedData: draft }),
+		});
+		setIsEditing(false);
+	};
+
+	const handleCancel = () => {
+		setDraft(body);
+		setIsEditing(false);
+	};
+
 	return (
 		<div className='border border-border rounded-md overflow-hidden'>
 			<div className='flex items-center justify-between px-3 py-1.5 bg-sidebar-accent border-b border-border text-xs'>
 				<span className='font-medium'>{title}</span>
-				<span className='text-muted-foreground font-mono uppercase'>{language}</span>
+				<div className='flex items-center gap-2'>
+					<span className='text-muted-foreground font-mono uppercase text-[10px]'>sql</span>
+					{canEdit && !isEditing && (
+						<button
+							type='button'
+							onClick={() => setIsEditing(true)}
+							className='inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-background transition-colors'
+							title='Edit'
+						>
+							<Pencil className='size-3' />
+							Edit
+						</button>
+					)}
+					{isEditing && (
+						<>
+							<button
+								type='button'
+								onClick={handleCancel}
+								disabled={editMutation.isPending}
+								className='inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-background transition-colors disabled:opacity-50'
+								title='Cancel'
+							>
+								<X className='size-3' />
+								Cancel
+							</button>
+							<button
+								type='button'
+								onClick={handleSave}
+								disabled={editMutation.isPending || draft === body}
+								className='inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50'
+								title='Save'
+							>
+								{editMutation.isPending ? (
+									<Loader2 className='size-3 animate-spin' />
+								) : (
+									<Check className='size-3' />
+								)}
+								Save
+							</button>
+						</>
+					)}
+				</div>
 			</div>
-			<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>{body}</pre>
+			{isEditing ? (
+				<Editor
+					height='240px'
+					language='sql'
+					value={draft}
+					onChange={(v) => setDraft(v ?? '')}
+					options={{
+						minimap: { enabled: false },
+						fontSize: 12,
+						lineNumbers: 'off',
+						scrollBeyondLastLine: false,
+						wordWrap: 'on',
+						tabSize: 2,
+					}}
+				/>
+			) : (
+				<pre className='p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap'>{body}</pre>
+			)}
+			{editMutation.isError && (
+				<p className='px-3 py-1 text-xs text-red-500 border-t border-border'>
+					Failed to save. Please try again.
+				</p>
+			)}
 		</div>
 	);
 }

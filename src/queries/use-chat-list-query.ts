@@ -15,10 +15,11 @@ export interface ListChatResponse {
 	chats: ChatListItem[];
 }
 
-// Django's GET /api/threads/ response: array of { thread_id, title }
+// Django's GET /api/threads/ response: array of { thread_id, title, is_starred, created_at }
 interface DjangoThread {
 	thread_id: string;
 	title: string | null;
+	is_starred?: boolean;
 	created_at?: string;
 }
 
@@ -30,7 +31,7 @@ const adaptThread = (t: DjangoThread): ChatListItem => {
 		id: t.thread_id,
 		projectId: 'default', // Django has no project concept — synthetic
 		title: t.title ?? 'New Conversation',
-		isStarred: false, // Django doesn't track this yet
+		isStarred: t.is_starred ?? false,
 		createdAt: created,
 		updatedAt: created,
 	};
