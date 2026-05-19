@@ -1,16 +1,18 @@
 // Collapsible sidebar section listing the user's schema-agent projects.
-// Lives next to the SQL chat list and operates independently — its own
-// collapse state, its own list, its own delete/rename mutations.
+// Starred schemas are pulled into the unified Starred section at the top of
+// the sidebar (see sidebar-starred-section.tsx); this list shows non-starred
+// schemas only.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Ellipsis, Pencil, TrashIcon } from 'lucide-react';
+import { Ellipsis, Pencil, Star, StarOff, TrashIcon } from 'lucide-react';
 
 import {
 	type SchemaProjectListItem,
 	useSchemaDeleteMutation,
 	useSchemaListQuery,
 	useSchemaRenameMutation,
+	useSchemaStarMutation,
 } from '@/queries/use-schema-list-query';
 import { useChatActivity } from '@/hooks/use-chat-activity';
 import { useTimeAgo } from '@/hooks/use-time-ago';
@@ -41,59 +43,33 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 		});
 	}, []);
 
-	// + button hidden for now — keep this handler ready for re-enable:
-	// const startNewSchema = useCallback(() => {
-	// 	persistAgent('schema');  // import { persistAgent } from '@/components/agent-picker';
-	// 	navigate({ to: '/' });
-	// }, [navigate]);
-
-	const items = projects.data ?? [];
+	const regular = useMemo(
+		() => (projects.data ?? []).filter((p) => !p.isStarred),
+		[projects.data],
+	);
 
 	return (
 		<div
 			className={cn(
 				'flex flex-col overflow-hidden transition-[opacity,visibility] duration-300 border-t border-sidebar-border',
-				// Only claim flex-1 when expanded — otherwise the section collapses to
-				// just its header so the next section (or empty space) sits right below.
 				isOpen && 'flex-1 min-h-0',
 				hideIf(isCollapsed),
 			)}
 		>
 			<div className='px-2 space-y-0.5'>
 				<SidebarSectionHeader label='Schemas' isOpen={isOpen} onToggle={toggle} />
-				{/*
-				+ button hidden for now — keep the markup so we can re-enable later.
-				<SidebarSectionHeader
-					label='Schemas'
-					isOpen={isOpen}
-					onToggle={toggle}
-					extra={
-						<Button
-							onClick={(e) => {
-								e.stopPropagation();
-								startNewSchema();
-							}}
-							variant='ghost'
-							size='icon-xs'
-							title='New schema project'
-						>
-							<Plus className='size-3.5' />
-						</Button>
-					}
-				/>
-				*/}
 			</div>
 
 			{isOpen && (
 				<div className='w-60 flex-1 overflow-y-auto px-2 space-y-1'>
 					{projects.isLoading ? (
 						<p className='text-xs text-muted-foreground text-center p-4'>Loading…</p>
-					) : items.length === 0 ? (
+					) : regular.length === 0 ? (
 						<p className='text-xs text-muted-foreground text-center p-4'>
 							No schema projects yet.
 						</p>
 					) : (
-						items.map((p) => <SchemaProjectListRow key={p.slug} project={p} />)
+						regular.map((p) => <SchemaProjectListRow key={p.slug} project={p} />)
 					)}
 				</div>
 			)}
@@ -101,10 +77,11 @@ export function SidebarSchemaSection({ isCollapsed }: { isCollapsed: boolean }) 
 	);
 }
 
-function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
+export function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 	const navigate = useNavigate();
 	const rename = useSchemaRenameMutation();
 	const remove = useSchemaDeleteMutation();
+	const toggleStar = useSchemaStarMutation();
 	const timeAgo = useTimeAgo(project.updatedAt);
 	const activity = useChatActivity(project.slug);
 	const [draft, setDraft] = useState(project.name ?? 'New Project');
@@ -126,6 +103,10 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 	const handleRenameSelect = () => {
 		setDraft(project.name ?? 'New Project');
 		setIsRenaming((p) => !p);
+	};
+
+	const handleStarSelect = () => {
+		toggleStar.mutate({ slug: project.slug, isStarred: !project.isStarred });
 	};
 
 	const handleDeleteSelect = () => {
@@ -185,6 +166,10 @@ function SchemaProjectListRow({ project }: { project: SchemaProjectListItem }) {
 
 						<DropdownMenuContent onClick={(e) => e.stopPropagation()}>
 							<DropdownMenuGroup>
+								<DropdownMenuItem onSelect={handleStarSelect}>
+									{project.isStarred ? <StarOff /> : <Star />}
+									{project.isStarred ? 'Unstar' : 'Star'}
+								</DropdownMenuItem>
 								<DropdownMenuItem onSelect={handleRenameSelect}>
 									<Pencil />
 									Rename

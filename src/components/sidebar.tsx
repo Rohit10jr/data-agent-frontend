@@ -15,10 +15,10 @@ import {
   X,
   Database,
 } from "lucide-react";
-import { ChatList } from "./sidebar-chat-list";
 import { ChatListItem } from "./sidebar-chat-list-item";
 import { SharedChatListItem } from "./shared-chat-list-item";
 import { SidebarSchemaSection } from "./sidebar-schema-section";
+import { SidebarStarredSection } from "./sidebar-starred-section";
 import { SidebarSectionHeader } from "./sidebar-section-header";
 import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarSettingsNav } from "./sidebar-settings-nav";
@@ -266,6 +266,7 @@ export function Sidebar() {
         />
       ) : (
         <>
+          <SidebarStarredSection isCollapsed={effectiveIsCollapsed} />
           <SidebarNav
             chats={chats.data?.chats || []}
             isCollapsed={effectiveIsCollapsed}
@@ -351,20 +352,10 @@ function SidebarNav({
   chats: ChatListItemType[];
   isCollapsed: boolean;
 }) {
-  const [starredOpen, setStarredOpen] = useState(
-    () => localStorage.getItem("sidebar-starred-open") !== "false",
-  );
   const [chatsOpen, setChatsOpen] = useState(
     () => localStorage.getItem("sidebar-chats-open") !== "false",
   );
   const [sharedOpen, setSharedOpen] = useState(false);
-
-  const toggleStarred = useCallback(() => {
-    setStarredOpen((prev) => {
-      localStorage.setItem("sidebar-starred-open", String(!prev));
-      return !prev;
-    });
-  }, []);
 
   const toggleChats = useCallback(() => {
     setChatsOpen((prev) => {
@@ -373,31 +364,19 @@ function SidebarNav({
     });
   }, []);
 
-  const { starred, regular, starredIds, regularIds } = useMemo(() => {
-    const starredChats: ChatListItemType[] = [];
-    const rest: ChatListItemType[] = [];
-    for (const chat of chats) {
-      if (chat.isStarred) {
-        starredChats.push(chat);
-      } else {
-        rest.push(chat);
-      }
-    }
-    return {
-      starred: starredChats,
-      regular: rest,
-      starredIds: starredChats.map((c) => c.id),
-      regularIds: rest.map((c) => c.id),
-    };
+  // Starred chats are rendered in the unified Starred section at the top of
+  // the sidebar — drop them from this list so they don't appear twice.
+  const { regular, regularIds } = useMemo(() => {
+    const rest = chats.filter((c) => !c.isStarred);
+    return { regular: rest, regularIds: rest.map((c) => c.id) };
   }, [chats]);
 
-  const starredActivity = useSectionActivity(starredIds);
   const chatsActivity = useSectionActivity(regularIds);
 
   const sharedChatsQuery = useQuery(trpc.sharedChat.list.queryOptions());
   const allOwnChatIds = useMemo(
-    () => new Set([...starredIds, ...regularIds]),
-    [starredIds, regularIds],
+    () => new Set(chats.map((c) => c.id)),
+    [chats],
   );
   const sharedWithMeChats = useMemo((): SharedChatWithDetails[] => {
     if (!sharedChatsQuery.data) {
@@ -432,20 +411,6 @@ function SidebarNav({
         hideIf(isCollapsed),
       )}
     >
-      {starred.length > 0 && (
-        <>
-          <div className="px-2 space-y-0.5">
-            <SidebarSectionHeader
-              label="Starred"
-              isOpen={starredOpen}
-              onToggle={toggleStarred}
-              activity={starredActivity}
-            />
-          </div>
-          {starredOpen && <ChatList chats={starred} className="w-60 flex-none" />}
-        </>
-      )}
-
       <div className="px-2 space-y-0.5">
         <ChatsSectionHeader
           isOpen={chatsOpen}
