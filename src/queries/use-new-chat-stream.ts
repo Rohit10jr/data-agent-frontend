@@ -60,6 +60,13 @@ export function useNewChatStream() {
 		if (!tid) return;
 		hasNavigatedRef.current = true;
 
+		// Defensive: ensure the activity store has running=true at the moment
+		// the sidebar row is added. setRunning fired earlier on `thread_created`,
+		// but this guards against any timing edge where the optimistic chat
+		// row mounts before the store update has propagated. setRunning is
+		// idempotent — it no-ops if already true.
+		chatActivityStore.setRunning(tid, true);
+
 		qc.setQueryData<ListChatResponse>(CHAT_LIST_QUERY_KEY, (prev) => {
 			if (!prev) return prev;
 			if (prev.chats.some((c) => c.id === tid)) return prev;

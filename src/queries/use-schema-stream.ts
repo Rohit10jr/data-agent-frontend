@@ -57,6 +57,25 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const abortRef = useRef<AbortController | null>(null);
 	const slugRef = useRef<string | undefined>(slug);
 	const hasNavigatedRef = useRef(false);
+	// Refs shadow the state above so the `finally` block sees the latest
+	// values even if its closure was created when state was still null
+	// (stale-closure trap with async functions + useCallback).
+	const liveUserRef = useRef<LiveTurn | null>(null);
+	const liveAssistantRef = useRef<LiveTurn | null>(null);
+	const liveSchemaTableRef = useRef<string | null>(null);
+	const liveSqlTableRef = useRef<string | null>(null);
+	const liveSqlSeedRef = useRef<string | null>(null);
+
+	// Mirror state into refs every render so async closures (the `finally`
+	// block below) read the latest values, not the values frozen when the
+	// closure was created.
+	useEffect(() => {
+		liveUserRef.current = liveUser;
+		liveAssistantRef.current = liveAssistant;
+		liveSchemaTableRef.current = liveSchemaTable;
+		liveSqlTableRef.current = liveSqlTable;
+		liveSqlSeedRef.current = liveSqlSeed;
+	});
 
 	const liveState = useMemo<SchemaStreamState>(
 		() => ({
@@ -220,13 +239,66 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					chatActivityStore.setUnread(finalSlug, true);
 				}
 
-				// Refetch the canonical project so the UI shows the persisted state.
+				// Seed the project query cache with whatever live state we have,
+				// so when the user clicks the sidebar dot and lands on
+				// /schema/<slug> they see their question + reply immediately —
+				// even if the backend refetch hasn't returned yet. Uses refs to
+				// avoid the stale-closure trap.
 				if (finalSlug && hasNavigatedRef.current) {
+					const seededMessages: SchemaHistoryTurn[] = [];
+					if (liveUserRef.current) {
+						seededMessages.push({
+							id: 0,
+							role: 'user',
+							text: liveUserRef.current.text,
+						});
+					}
+					if (liveAssistantRef.current) {
+						seededMessages.push({
+							id: seededMessages.length,
+							role: 'assistant',
+							text: liveAssistantRef.current.text,
+						});
+					}
+
+					qc.setQueryData<SchemaProjectDetail>(
+						schemaProjectQueryKey(finalSlug),
+						(prev) =>
+							prev
+								? {
+										...prev,
+										schema_table:
+											liveSchemaTableRef.current ?? prev.schema_table,
+										sql_table: liveSqlTableRef.current ?? prev.sql_table,
+										sql_seed_data:
+											liveSqlSeedRef.current ?? prev.sql_seed_data,
+										messages:
+											seededMessages.length > 0
+												? seededMessages
+												: prev.messages,
+									}
+								: {
+										id: -1,
+										slug: finalSlug,
+										name: 'New Project',
+										user: -1,
+										schema_table: liveSchemaTableRef.current,
+										sql_table: liveSqlTableRef.current,
+										sql_seed_data: liveSqlSeedRef.current,
+										created_at: new Date().toISOString(),
+										updated_at: new Date().toISOString(),
+										messages: seededMessages,
+									},
+					);
+
+					// Force a refetch (not just invalidate) so the cache is hot for
+					// the next visit, even though no component is currently
+					// subscribed to this query on the unmounted home page.
 					try {
-						await qc.invalidateQueries({ queryKey: schemaProjectQueryKey(finalSlug) });
+						await qc.refetchQueries({ queryKey: schemaProjectQueryKey(finalSlug) });
 						await qc.invalidateQueries({ queryKey: SCHEMA_LIST_QUERY_KEY });
 					} catch {
-						// ignore — live state still reflects the latest stream output
+						// ignore — the seeded cache keeps the page populated
 					}
 				}
 				setLiveUser(null);
