@@ -47,14 +47,35 @@ import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/cha
 import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
 
+// Structured schema IR — matches the backend DatabaseSchema produced by the
+// schema agent's generate_schema tool (core/services/schema_graph.py).
 interface Column {
 	name: string;
 	type: string;
-	constraints: string;
+	nullable?: boolean;
+	primary_key?: boolean;
+	unique?: boolean;
+	default?: string | null;
+	check?: string | null;
+	description?: string;
+}
+interface ForeignKey {
+	column: string;
+	references_table: string;
+	references_column?: string;
+	on_delete?: string;
+}
+interface IndexDefinition {
+	name: string;
+	columns: string[];
+	unique?: boolean;
 }
 interface ParsedTable {
 	name: string;
+	purpose?: string;
 	columns: Column[];
+	foreign_keys: ForeignKey[];
+	indexes: IndexDefinition[];
 }
 
 interface Props {
@@ -76,7 +97,17 @@ function parseTables(schemaTable: string | null): ParsedTable[] {
 	if (!schemaTable) return [];
 	try {
 		const obj = JSON.parse(schemaTable);
-		return Array.isArray(obj?.tables) ? obj.tables : [];
+		const tables = Array.isArray(obj?.tables) ? obj.tables : [];
+		// Normalise — older artifacts may omit foreign_keys / indexes.
+		return tables.map(
+			(t: Partial<ParsedTable>): ParsedTable => ({
+				name: t.name ?? '',
+				purpose: t.purpose,
+				columns: Array.isArray(t.columns) ? t.columns : [],
+				foreign_keys: Array.isArray(t.foreign_keys) ? t.foreign_keys : [],
+				indexes: Array.isArray(t.indexes) ? t.indexes : [],
+			}),
+		);
 	} catch {
 		return [];
 	}
@@ -313,6 +344,7 @@ function TablesTab({ tables }: { tables: ParsedTable[] }) {
 }
 
 function TableCard({ table }: { table: ParsedTable }) {
+	const fkColumns = new Set(table.foreign_keys.map((fk) => fk.column));
 	return (
 		<div className='border border-border rounded-lg overflow-hidden bg-background hover:border-foreground/30 transition-colors'>
 			<div className='flex items-center justify-between px-3 py-2 bg-sidebar-accent border-b border-border'>
@@ -321,10 +353,8 @@ function TableCard({ table }: { table: ParsedTable }) {
 			</div>
 			<div className='divide-y divide-border'>
 				{table.columns.map((col) => {
-					const isPK = col.constraints.toUpperCase().includes('PRIMARY KEY');
-					const isFK =
-						col.constraints.toUpperCase().includes('REFERENCES') ||
-						col.name.toLowerCase().endsWith('_id');
+					const isPK = !!col.primary_key;
+					const isFK = fkColumns.has(col.name);
 					return (
 						<div
 							key={col.name}
@@ -337,6 +367,7 @@ function TableCard({ table }: { table: ParsedTable }) {
 							</div>
 							<span className='font-mono text-muted-foreground text-[10px] shrink-0 ml-2'>
 								{col.type}
+								{!col.nullable && <span className='ml-1 text-amber-600/70'>•</span>}
 							</span>
 						</div>
 					);
@@ -637,10 +668,12 @@ const erNodeTypes = { table: ErTableNode };
 interface ErNodeData {
 	label: string;
 	columns: Column[];
+	fkColumns: string[];   // names of columns that are foreign keys
 	[key: string]: unknown;
 }
 
 function ErTableNode({ data }: { data: ErNodeData }) {
+	const fkSet = new Set(data.fkColumns);
 	return (
 		<div className='bg-background border border-border rounded-md shadow-sm overflow-hidden w-56 text-foreground'>
 			<div className='px-2 py-1.5 bg-sidebar-accent border-b border-border text-[11px] font-semibold font-mono text-center'>
@@ -648,10 +681,8 @@ function ErTableNode({ data }: { data: ErNodeData }) {
 			</div>
 			<div className='py-1'>
 				{data.columns.map((col) => {
-					const isPK = col.constraints.toUpperCase().includes('PRIMARY KEY');
-					const isFK =
-						col.constraints.toUpperCase().includes('REFERENCES') ||
-						col.name.toLowerCase().endsWith('_id');
+					const isPK = !!col.primary_key;
+					const isFK = fkSet.has(col.name);
 					return (
 						<div
 							key={col.name}
@@ -695,37 +726,32 @@ function buildErGraph(tables: ParsedTable[]): { nodes: Node[]; edges: Edge[] } {
 		id: t.name,
 		type: 'table',
 		position: { x: (i % 3) * 280, y: Math.floor(i / 3) * 280 },
-		data: { label: t.name, columns: t.columns } satisfies ErNodeData,
+		data: {
+			label: t.name,
+			columns: t.columns,
+			fkColumns: t.foreign_keys.map((fk) => fk.column),
+		} satisfies ErNodeData,
 	}));
 
+	const tableByName = new Map(tables.map((t) => [t.name, t]));
 	const edges: Edge[] = [];
 	for (const table of tables) {
-		for (const col of table.columns) {
-			let targetTable: string | undefined;
-
-			const refMatch = col.constraints.match(/REFERENCES\s+(\w+)\s*\(/i);
-			if (refMatch) {
-				targetTable = refMatch[1];
-			} else if (col.name.toLowerCase().endsWith('_id')) {
-				const base = col.name.slice(0, -3).toLowerCase();
-				targetTable = tables.find(
-					(t) => t.name.toLowerCase() === base || t.name.toLowerCase() === `${base}s`,
-				)?.name;
-			}
-			if (!targetTable || targetTable === table.name) continue;
+		// Edges come straight from the explicit foreign_keys IR — no regex guessing.
+		for (const fk of table.foreign_keys) {
+			const target = tableByName.get(fk.references_table);
+			if (!target || target.name === table.name) continue;
 
 			const pkCol =
-				tables
-					.find((t) => t.name === targetTable)
-					?.columns.find((c) => c.constraints.toUpperCase().includes('PRIMARY KEY'))
-					?.name ?? 'id';
+				target.columns.find((c) => c.primary_key)?.name ??
+				fk.references_column ??
+				'id';
 
 			edges.push({
-				id: `${table.name}-${col.name}->${targetTable}`,
-				source: targetTable,
+				id: `${table.name}-${fk.column}->${target.name}`,
+				source: target.name,
 				target: table.name,
-				sourceHandle: `${targetTable}-${pkCol}-source`,
-				targetHandle: `${table.name}-${col.name}-target`,
+				sourceHandle: `${target.name}-${pkCol}-source`,
+				targetHandle: `${table.name}-${fk.column}-target`,
 				animated: true,
 				markerEnd: { type: MarkerType.ArrowClosed },
 				style: { strokeWidth: 1.5 },

@@ -56,14 +56,14 @@ export const settingsSearchIndex: SettingsSearchEntry[] = [
 		page: '/settings/memory',
 		pageLabel: 'Memory',
 		title: 'Memory',
-		description: 'Memories enables Queryn to learn about you and your preferences over time.',
-		keywords: ['remember', 'learn', 'personalization', 'preferences'],
-	},
-	{
-		page: '/settings/memory',
-		pageLabel: 'Memory',
-		title: 'Saved Memories',
-		description: 'Review and manage memory preferences and what the agent has remembered.',
-		keywords: ['remembered facts', 'memory list'],
+		description: 'What the assistant remembers about you across conversations — add, edit, or remove anything.',
+		keywords: [
+			'remember',
+			'learn',
+			'personalization',
+			'preferences',
+			'remembered facts',
+			'long-term memory',
+		],
 	},
 ];

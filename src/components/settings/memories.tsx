@@ -1,7 +1,4 @@
-import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import type { UserMemoryRecord } from '@nao/backend/memory';
+import { useState } from 'react';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -17,91 +14,50 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Empty } from '@/components/ui/empty';
 import { ErrorMessage } from '@/components/ui/error-message';
 import { SettingsCard } from '@/components/ui/settings-card';
-import { SettingsControlRow } from '@/components/ui/settings-toggle-row';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SettingsMemoryItem, SettingsMemorySkeleton } from '@/components/settings/memory-item';
-import { useMemoriesQuery, useMemoryMutations, useMemorySettingsQuery } from '@/queries/use-memories';
-import { trpc } from '@/main';
-import { cn } from '@/lib/utils';
+import { useMemoriesQuery, useMemoryMutations, type Memory } from '@/queries/use-memories';
 
 export function SettingsMemories() {
-	const projectMemorySettings = useQuery(trpc.project.getMemorySettings.queryOptions());
-	const project = useQuery(trpc.project.getCurrent.queryOptions());
-	const memorySettings = useMemorySettingsQuery();
+	const { data: memories, isLoading } = useMemoriesQuery();
+	const { createMutation, updateMutation, deleteMutation } = useMemoryMutations();
 
-	const { updateMemorySettingsMutation, updateMutation, deleteMutation } = useMemoryMutations();
-
-	const projectMemoryEnabled = projectMemorySettings.data?.memoryEnabled ?? true;
-	const isAdmin = project.data?.userRole === 'admin';
-	const userMemoryEnabled = memorySettings.data?.memoryEnabled ?? true;
-	const isProjectDisabled = !projectMemoryEnabled;
-	const isUserDisabled = !userMemoryEnabled;
-	const canShowMemories = !isProjectDisabled && !isUserDisabled;
-
-	const { data: memories, isLoading: isMemoriesLoading } = useMemoriesQuery(canShowMemories);
-
-	const [editMemory, setEditMemory] = useState<UserMemoryRecord | null>(null);
+	const [draft, setDraft] = useState('');
+	const [editMemory, setEditMemory] = useState<Memory | null>(null);
 	const [editContent, setEditContent] = useState('');
-	const [deleteMemory, setDeleteMemory] = useState<UserMemoryRecord | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<Memory | null>(null);
 
-	const isUserToggleDisabled = isProjectDisabled || updateMemorySettingsMutation.isPending;
+	const errorMessage = (e: unknown): string | undefined =>
+		e instanceof Error ? e.message : undefined;
 
-	const memoryStatusMessage = useMemo((): React.ReactNode => {
-		if (isProjectDisabled) {
-			return (
-				<>
-					Memory was disabled for this project.
-					{isAdmin && (
-						<>
-							{' '}
-							You can change this in the{' '}
-							<Link
-								to='/settings/project/agent'
-								className='underline underline-offset-2 hover:text-foreground'
-							>
-								project's settings.
-							</Link>
-						</>
-					)}
-				</>
-			);
+	const handleAdd = async () => {
+		const content = draft.trim();
+		if (!content) {
+			return;
 		}
-		if (isUserDisabled) {
-			return 'Memory is disabled.';
-		}
-		return '';
-	}, [isProjectDisabled, isUserDisabled, isAdmin]);
-
-	const handleUserToggle = (enabled: boolean) => {
-		updateMemorySettingsMutation.mutate({ memoryEnabled: enabled });
+		await createMutation.mutateAsync({ content });
+		setDraft('');
 	};
 
-	const handleEditMemory = (memory: UserMemoryRecord) => {
+	const handleEdit = (memory: Memory) => {
 		setEditMemory(memory);
 		setEditContent(memory.content);
-	};
-
-	const handleDeleteMemory = (memory: UserMemoryRecord) => {
-		setDeleteMemory(memory);
 	};
 
 	const handleSaveEdit = async () => {
 		if (!editMemory) {
 			return;
 		}
-		await updateMutation.mutateAsync({
-			memoryId: editMemory.id,
-			content: editContent,
-		});
+		await updateMutation.mutateAsync({ memoryId: editMemory.id, content: editContent });
 		setEditMemory(null);
 	};
 
-	const handleConfirmDelete = () => {
-		if (!deleteMemory) {
+	const handleConfirmDelete = async () => {
+		if (!deleteTarget) {
 			return;
 		}
-		deleteMutation.mutate({ memoryId: deleteMemory.id });
+		await deleteMutation.mutateAsync({ memoryId: deleteTarget.id });
+		setDeleteTarget(null);
 	};
 
 	return (
@@ -109,42 +65,36 @@ export function SettingsMemories() {
 			<SettingsCard
 				title='Memory'
 				titleSize='lg'
-				description='Memories enables nao to learn about you and your preferences over time.'
+				description='What the assistant remembers about you across conversations. It learns as you chat — add, edit, or remove anything here.'
 				divide
 			>
-				<SettingsControlRow
-					id='user-memory'
-					label='Enable memory'
-					description='Allow the agent to remember preferences and facts about you.'
-					className={cn(isUserToggleDisabled && 'opacity-50')}
-					control={
-						<Switch
-							id='user-memory'
-							checked={userMemoryEnabled}
-							onCheckedChange={handleUserToggle}
-							disabled={isUserToggleDisabled}
-						/>
-					}
-				/>
-			</SettingsCard>
-
-			<SettingsCard
-				title='Saved Memories'
-				description='Review and manage memory preferences and what the agent has remembered.'
-				divide
-			>
-				{memoryStatusMessage ? (
-					<div className='space-y-1'>
-						<Empty>{memoryStatusMessage}</Empty>
+				<div className='space-y-2'>
+					<Textarea
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+						placeholder='Add something you want the assistant to remember…'
+						rows={2}
+					/>
+					{createMutation.error && <ErrorMessage message={errorMessage(createMutation.error)} />}
+					<div className='flex justify-end'>
+						<Button
+							size='sm'
+							onClick={handleAdd}
+							disabled={createMutation.isPending || draft.trim().length === 0}
+						>
+							Add memory
+						</Button>
 					</div>
-				) : isMemoriesLoading ? (
+				</div>
+
+				{isLoading ? (
 					<div className='flex flex-col divide-y'>
 						<SettingsMemorySkeleton className='pt-0' />
 						<SettingsMemorySkeleton />
 						<SettingsMemorySkeleton className='pb-0' />
 					</div>
 				) : !memories?.length ? (
-					<Empty>No memories saved yet.</Empty>
+					<Empty>No memories yet. The assistant will learn as you chat.</Empty>
 				) : (
 					<div className='flex flex-col divide-y'>
 						{memories.map((memory) => (
@@ -152,69 +102,69 @@ export function SettingsMemories() {
 								key={memory.id}
 								memory={memory}
 								className='last:pb-0 first:pt-0'
-								onEdit={handleEditMemory}
-								onDelete={handleDeleteMemory}
+								onEdit={handleEdit}
+								onDelete={setDeleteTarget}
 							/>
 						))}
 					</div>
 				)}
-
-				<Dialog open={!!editMemory} onOpenChange={() => setEditMemory(null)}>
-					<DialogContent className='p-6' showCloseButton={false}>
-						<DialogHeader>
-							<DialogTitle>Edit memory</DialogTitle>
-						</DialogHeader>
-						<div className='space-y-4'>
-							<Textarea
-								value={editContent}
-								onChange={(event) => setEditContent(event.target.value)}
-								rows={4}
-							/>
-							{updateMutation.error?.message && <ErrorMessage message={updateMutation.error.message} />}
-						</div>
-						<DialogFooter>
-							<Button
-								variant='ghost'
-								onClick={() => setEditMemory(null)}
-								disabled={updateMutation.isPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								onClick={handleSaveEdit}
-								disabled={updateMutation.isPending || editContent.trim().length === 0}
-							>
-								Save
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-
-				<AlertDialog open={!!deleteMemory} onOpenChange={() => setDeleteMemory(null)}>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Delete memory?</AlertDialogTitle>
-							<AlertDialogDescription>
-								This memory will be removed and forgotten by the agent.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						{deleteMutation.error?.message && <ErrorMessage message={deleteMutation.error.message} />}
-						<AlertDialogFooter>
-							<AlertDialogCancel variant='outline' size='sm' disabled={deleteMutation.isPending}>
-								Cancel
-							</AlertDialogCancel>
-							<AlertDialogAction
-								variant='destructive'
-								size='sm'
-								onClick={handleConfirmDelete}
-								disabled={deleteMutation.isPending}
-							>
-								Delete
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
 			</SettingsCard>
+
+			<Dialog open={!!editMemory} onOpenChange={() => setEditMemory(null)}>
+				<DialogContent className='p-6' showCloseButton={false}>
+					<DialogHeader>
+						<DialogTitle>Edit memory</DialogTitle>
+					</DialogHeader>
+					<div className='space-y-4'>
+						<Textarea
+							value={editContent}
+							onChange={(event) => setEditContent(event.target.value)}
+							rows={4}
+						/>
+						{updateMutation.error && <ErrorMessage message={errorMessage(updateMutation.error)} />}
+					</div>
+					<DialogFooter>
+						<Button
+							variant='ghost'
+							onClick={() => setEditMemory(null)}
+							disabled={updateMutation.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSaveEdit}
+							disabled={updateMutation.isPending || editContent.trim().length === 0}
+						>
+							Save
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete memory?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This memory will be removed and forgotten by the assistant.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					{deleteMutation.error && <ErrorMessage message={errorMessage(deleteMutation.error)} />}
+					<AlertDialogFooter>
+						<AlertDialogCancel variant='outline' size='sm' disabled={deleteMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							variant='destructive'
+							size='sm'
+							onClick={handleConfirmDelete}
+							disabled={deleteMutation.isPending}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	);
 }
