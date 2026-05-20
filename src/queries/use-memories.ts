@@ -1,46 +1,53 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { trpc } from '@/main';
+// Long-term memory queries — list / create / update / delete the memories the
+// agent has learned about the user. Backed by the Django /api/memories/ API.
 
-export function useMemorySettingsQuery() {
-	return useQuery(trpc.user.getMemorySettings.queryOptions());
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+
+export interface Memory {
+	id: string;
+	content: string;
+	category: string;
+	source: 'agent' | 'user';
+	created_at?: string;
+	updated_at?: string;
 }
 
-export function useMemoriesQuery(enabled: boolean) {
-	return useQuery({
-		...trpc.user.getMemories.queryOptions(),
-		enabled,
-		staleTime: 5 * 1000,
+export const MEMORIES_QUERY_KEY = ['memories'] as const;
+
+export function useMemoriesQuery() {
+	return useQuery<Memory[]>({
+		queryKey: MEMORIES_QUERY_KEY,
+		queryFn: async () => {
+			const res = await api.get<{ memories: Memory[] }>('/memories/');
+			return res.memories;
+		},
 	});
 }
 
 export function useMemoryMutations() {
-	const updateMemorySettingsMutation = useMutation(
-		trpc.memory.setEnabled.mutationOptions({
-			onSuccess: (data, _, __, ctx) => {
-				ctx.client.setQueryData(trpc.user.getMemorySettings.queryKey(), data);
-			},
-		}),
-	);
+	const qc = useQueryClient();
+	const invalidate = () => qc.invalidateQueries({ queryKey: MEMORIES_QUERY_KEY });
 
-	const updateMutation = useMutation(
-		trpc.memory.edit.mutationOptions({
-			onSuccess: (updated, _, __, ctx) => {
-				ctx.client.setQueryData(trpc.user.getMemories.queryKey(), (prev = []) =>
-					prev.map((memory) => (memory.id === updated.id ? updated : memory)),
-				);
-			},
-		}),
-	);
+	const createMutation = useMutation({
+		mutationFn: (vars: { content: string; category?: string }) =>
+			api.post<{ memory: Memory }>('/memories/', vars),
+		onSuccess: invalidate,
+	});
 
-	const deleteMutation = useMutation(
-		trpc.memory.delete.mutationOptions({
-			onSuccess: (_, variables, __, ctx) => {
-				ctx.client.setQueryData(trpc.user.getMemories.queryKey(), (prev = []) =>
-					prev.filter((memory) => memory.id !== variables.memoryId),
-				);
-			},
-		}),
-	);
+	const updateMutation = useMutation({
+		mutationFn: (vars: { memoryId: string; content: string }) =>
+			api.patch<{ memory: Memory }>(`/memories/${vars.memoryId}/`, {
+				content: vars.content,
+			}),
+		onSuccess: invalidate,
+	});
 
-	return { updateMemorySettingsMutation, updateMutation, deleteMutation };
+	const deleteMutation = useMutation({
+		mutationFn: (vars: { memoryId: string }) =>
+			api.delete<void>(`/memories/${vars.memoryId}/`),
+		onSuccess: invalidate,
+	});
+
+	return { createMutation, updateMutation, deleteMutation };
 }
