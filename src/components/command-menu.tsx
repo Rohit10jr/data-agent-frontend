@@ -1,6 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { MessageSquareIcon, MessageSquarePlusIcon, MoonIcon, SunIcon, UserIcon } from 'lucide-react';
+import {
+	DatabaseIcon,
+	MessageSquareIcon,
+	MessageSquarePlusIcon,
+	MoonIcon,
+	SunIcon,
+	UserIcon,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import {
@@ -104,9 +111,13 @@ export function CommandMenu() {
 		command();
 	}, []);
 
-	const openChat = useCallback(
-		(chatId: string) => {
-			navigate({ to: '/$chatId', params: { chatId } });
+	const openResult = useCallback(
+		(result: { agent: 'sql' | 'schema'; threadId: string }) => {
+			if (result.agent === 'schema') {
+				navigate({ to: '/schema/$slug', params: { slug: result.threadId } });
+			} else {
+				navigate({ to: '/$chatId', params: { chatId: result.threadId } });
+			}
 		},
 		[navigate],
 	);
@@ -147,23 +158,18 @@ export function CommandMenu() {
 
 				{hasSearchResults ? (
 					<CommandGroup heading='Search results'>
-						{searchResults.map((chat) => (
+						{searchResults.map((result) => (
 							<CommandItem
-								key={chat.id}
-								value={`search-${chat.id}`}
-								onSelect={() => runCommand(() => openChat(chat.id))}
+								key={`${result.agent}-${result.threadId}`}
+								value={`search-${result.agent}-${result.threadId}`}
+								onSelect={() => runCommand(() => openResult(result))}
 							>
-								<MessageSquareIcon />
+								{result.agent === 'schema' ? <DatabaseIcon /> : <MessageSquareIcon />}
 								<div className='flex flex-col gap-0.5 overflow-hidden'>
-									<span className='truncate'>{highlightMatch(chat.title, debouncedSearch)}</span>
-									{chat.matchedText && (
+									<span className='truncate'>{highlightMatch(result.title, debouncedSearch)}</span>
+									{result.matchedText && (
 										<span className='text-muted-foreground truncate text-xs'>
-											...
-											{highlightMatch(
-												truncateMatchedText(chat.matchedText, debouncedSearch),
-												debouncedSearch,
-											)}
-											...
+											{highlightMatch(result.matchedText, debouncedSearch)}
 										</span>
 									)}
 								</div>
@@ -220,19 +226,4 @@ function highlightMatch(text: string, query: string) {
 			{after}
 		</>
 	);
-}
-
-function truncateMatchedText(text: string, query: string, contextLength = 30): string {
-	const lowerText = text.toLowerCase();
-	const lowerQuery = query.toLowerCase();
-	const index = lowerText.indexOf(lowerQuery);
-
-	if (index === -1) {
-		return text.slice(0, contextLength * 2);
-	}
-
-	const start = Math.max(0, index - contextLength);
-	const end = Math.min(text.length, index + query.length + contextLength);
-
-	return text.slice(start, end);
 }
