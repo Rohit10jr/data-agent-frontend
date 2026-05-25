@@ -1,6 +1,5 @@
 import { tokens } from './tokens';
-
-const API_BASE = '/api';
+import { API_BASE } from './config';
 
 export class ApiError extends Error {
 	constructor(public status: number, public body: unknown) {

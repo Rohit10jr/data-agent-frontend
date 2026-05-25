@@ -2,6 +2,7 @@
 // Calls onEvent for each parsed event. Caller passes an AbortSignal to cancel.
 
 import { tokens } from './tokens';
+import { API_BASE } from './config';
 
 /** Stable error codes emitted by the backend's `classify_error`. */
 export type AgentErrorCode =
@@ -164,7 +165,7 @@ export function streamSqlAgent({
 	onEvent,
 }: StreamArgs): Promise<void> {
 	return consumeSse<AgentEvent>(
-		'/api/sql-agent/',
+		`${API_BASE}/sql-agent/`,
 		{
 			query,
 			thread_id: threadId,
@@ -185,7 +186,7 @@ export function streamSchemaAgent({
 	onEvent,
 }: SchemaStreamArgs): Promise<void> {
 	return consumeSse<SchemaAgentEvent>(
-		'/api/schema-agent/',
+		`${API_BASE}/schema-agent/`,
 		{
 			query,
 			// The schema agent uses `thread_id` as the project slug.
@@ -203,7 +204,7 @@ export async function cancelRun(runId: string): Promise<void> {
 	if (!runId) return;
 	const access = tokens.getAccess();
 	try {
-		await fetch(`/api/runs/${encodeURIComponent(runId)}/cancel/`, {
+		await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/cancel/`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
