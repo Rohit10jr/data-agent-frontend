@@ -10,7 +10,10 @@ import { useNavigate } from '@tanstack/react-router';
 
 import {
 	streamSchemaAgent,
+	cancelRun,
+	ConcurrentRunError,
 	type SchemaAgentEvent,
+	type AgentErrorPayload,
 } from '@/lib/django-stream';
 import {
 	SCHEMA_LIST_QUERY_KEY,
@@ -34,7 +37,7 @@ export interface SchemaStreamState {
 	liveSqlTable: string | null;
 	liveSqlSeed: string | null;
 	isStreaming: boolean;
-	streamError?: string;
+	streamError?: AgentErrorPayload;
 }
 
 interface UseSchemaStreamOptions {
@@ -52,11 +55,14 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const [liveSqlTable, setLiveSqlTable] = useState<string | null>(null);
 	const [liveSqlSeed, setLiveSqlSeed] = useState<string | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
-	const [streamError, setStreamError] = useState<string | undefined>();
+	const [streamError, setStreamError] = useState<AgentErrorPayload | undefined>();
 
 	const abortRef = useRef<AbortController | null>(null);
 	const slugRef = useRef<string | undefined>(slug);
 	const hasNavigatedRef = useRef(false);
+	// run_id captured from the `run_started` SSE event — drives abort()'s
+	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
+	const runIdRef = useRef<string | null>(null);
 	// Refs shadow the state above so the `finally` block sees the latest
 	// values even if its closure was created when state was still null
 	// (stale-closure trap with async functions + useCallback).
@@ -135,6 +141,17 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					break;
 				}
 
+				case 'run_started': {
+					runIdRef.current = event.run_id;
+					break;
+				}
+
+				case 'cancelled': {
+					// Backend has acknowledged the cancel. The stream will close
+					// next; the finally block in sendMessage handles cleanup.
+					break;
+				}
+
 				case 'node_start': {
 					commitNavigation();
 					setCurrentNode(event.label);
@@ -178,7 +195,14 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				}
 
 				case 'error': {
-					setStreamError(event.error);
+					setStreamError({
+						code: event.code,
+						message: event.message,
+						retryable: event.retryable,
+						retry_after_seconds: event.retry_after_seconds,
+						run_id: event.run_id,
+						node: event.node,
+					});
 					break;
 				}
 
@@ -209,6 +233,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 			// New-project path: handleEvent will flip it on `thread_created` instead.
 			if (slug) chatActivityStore.setRunning(slug, true);
 
+			runIdRef.current = null;
 			const controller = new AbortController();
 			abortRef.current = controller;
 
@@ -221,11 +246,29 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					onEvent: handleEvent,
 				});
 			} catch (err) {
-				if ((err as Error).name !== 'AbortError') {
-					setStreamError(err instanceof Error ? err.message : String(err));
+				if (err instanceof ConcurrentRunError) {
+					setStreamError({
+						code: 'BAD_REQUEST',
+						message:
+							'A previous response is still running. Stop it before sending a new message.',
+						retryable: false,
+						retry_after_seconds: null,
+						run_id: err.existingRunId || null,
+						node: null,
+					});
+				} else if ((err as Error).name !== 'AbortError') {
+					setStreamError({
+						code: 'INTERNAL',
+						message: err instanceof Error ? err.message : String(err),
+						retryable: true,
+						retry_after_seconds: null,
+						run_id: null,
+						node: null,
+					});
 				}
 			} finally {
 				abortRef.current = null;
+				runIdRef.current = null;
 				setIsStreaming(false);
 				setCurrentNode(null);
 
@@ -311,7 +354,12 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 		[slug, isStreaming, handleEvent, qc],
 	);
 
-	const abort = useCallback(() => abortRef.current?.abort(), []);
+	const abort = useCallback(() => {
+		// Tell the backend to stop (saves tokens + ends the run cleanly).
+		const runId = runIdRef.current;
+		if (runId) void cancelRun(runId);
+		abortRef.current?.abort();
+	}, []);
 
 	// Cleanup-on-unmount — only when slug was provided at hook init (refine
 	// case). For the new-project flow (no slug), the home page mounts the hook

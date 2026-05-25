@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useRef } from 'react';
 import { useSession } from '@/lib/auth-client';
 import { capitalize } from '@/lib/utils';
 import { ChatComposer, type ChatComposerSendOpts } from '@/components/chat-composer';
+import { AgentErrorBanner } from '@/components/chat/agent-error-banner';
 import { useNewChatStream } from '@/queries/use-new-chat-stream';
 import { useSchemaStream } from '@/queries/use-schema-stream';
 import { MobileHeader } from '@/components/mobile-header';
@@ -26,7 +28,11 @@ function HomePage() {
 		schemaNew.abort?.();
 	};
 
+	// Cache the last submitted message so the error banner's Retry button
+	// can resend the same prompt without the user retyping.
+	const lastSentRef = useRef<{ text: string; opts: ChatComposerSendOpts } | null>(null);
 	const handleSend = (text: string, opts: ChatComposerSendOpts) => {
+		lastSentRef.current = { text, opts };
 		if (opts.agent === 'schema') {
 			void schemaNew.sendMessage(text, opts.model);
 		} else {
@@ -35,6 +41,9 @@ function HomePage() {
 				model: opts.model,
 			});
 		}
+	};
+	const handleRetry = () => {
+		if (lastSentRef.current) handleSend(lastSentRef.current.text, lastSentRef.current.opts);
 	};
 
 	const greeting = `${username ? capitalize(username) : 'Hello'}, what do you want to build?`;
@@ -52,7 +61,9 @@ function HomePage() {
 			</div>
 
 			{streamError && (
-				<p className='max-w-3xl mx-auto pb-2 text-sm text-red-500 text-center'>{streamError}</p>
+				<div className='pb-2 px-3'>
+					<AgentErrorBanner error={streamError} onRetry={handleRetry} />
+				</div>
 			)}
 
 			<ChatComposer

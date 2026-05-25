@@ -2,22 +2,49 @@
 // Calls onEvent for each parsed event. Caller passes an AbortSignal to cancel.
 
 import { tokens } from './tokens';
+import { API_BASE } from './config';
+
+/** Stable error codes emitted by the backend's `classify_error`. */
+export type AgentErrorCode =
+	| 'RATE_LIMIT'
+	| 'CONTEXT_OVERFLOW'
+	| 'BAD_REQUEST'
+	| 'AUTH'
+	| 'PROVIDER_TIMEOUT'
+	| 'PROVIDER_NETWORK'
+	| 'PROVIDER_DOWN'
+	| 'DB_DOWN'
+	| 'SCHEMA'
+	| 'RECURSION_LIMIT'
+	| 'INTERNAL';
+
+export interface AgentErrorPayload {
+	code: AgentErrorCode;
+	message: string;
+	retryable: boolean;
+	retry_after_seconds: number | null;
+	run_id: string | null;
+	node: string | null;
+}
 
 export type AgentEvent =
 	| { type: 'thread_created'; thread_id: string; connection_id: string }
+	| { type: 'run_started'; run_id: string }
 	| { type: 'token'; kind?: 'reasoning' | 'text'; node?: string; text: string }
 	| { type: 'tool_start'; name: string; args: Record<string, unknown> }
 	| { type: 'tool_result'; name: string; content: string }
 	| { type: 'result'; result_type: string; result_id: string; content: Record<string, unknown> }
 	| { type: 'done'; text: string }
+	| { type: 'cancelled'; run_id: string }
 	| { type: 'title'; thread_id: string; title: string }
-	| { type: 'error'; error: string };
+	| ({ type: 'error' } & AgentErrorPayload);
 
 // Schema-agent SSE event shapes. Same SSE wire format as the SQL agent, but
 // emits a different mix of events (no tool_start / tool_result; instead
 // node_start for progress and structured `result` payloads for SCHEMA / SQL).
 export type SchemaAgentEvent =
 	| { type: 'thread_created'; slug: string }
+	| { type: 'run_started'; run_id: string }
 	| { type: 'node_start'; node: string; label: string }
 	| { type: 'token'; kind?: 'text'; node?: string; text: string }
 	| {
@@ -31,8 +58,19 @@ export type SchemaAgentEvent =
 			content: { sql_table: string; sql_seed_data: string };
 	  }
 	| { type: 'done'; text: string }
+	| { type: 'cancelled'; run_id: string }
 	| { type: 'title'; slug: string; title: string }
-	| { type: 'error'; error: string };
+	| ({ type: 'error' } & AgentErrorPayload);
+
+/** Thrown when the backend returns 409 — another run is in flight on this thread. */
+export class ConcurrentRunError extends Error {
+	readonly existingRunId: string;
+	constructor(existingRunId: string) {
+		super(`A run is already in flight on this thread (run_id=${existingRunId})`);
+		this.name = 'ConcurrentRunError';
+		this.existingRunId = existingRunId;
+	}
+}
 
 interface StreamArgs {
 	query: string;
@@ -70,6 +108,12 @@ async function consumeSse<E>(
 		signal,
 	});
 
+	if (res.status === 409) {
+		// Backend run_registry rejected: another run is in flight on this thread.
+		// Body carries the existing run_id so the caller can cancel-and-retry.
+		const body = await res.json().catch(() => ({}) as { run_id?: string });
+		throw new ConcurrentRunError(body.run_id ?? '');
+	}
 	if (!res.ok) {
 		const text = await res.text().catch(() => '');
 		throw new Error(`Agent request failed (${res.status}): ${text || res.statusText}`);
@@ -121,7 +165,7 @@ export function streamSqlAgent({
 	onEvent,
 }: StreamArgs): Promise<void> {
 	return consumeSse<AgentEvent>(
-		'/api/sql-agent/',
+		`${API_BASE}/sql-agent/`,
 		{
 			query,
 			thread_id: threadId,
@@ -142,7 +186,7 @@ export function streamSchemaAgent({
 	onEvent,
 }: SchemaStreamArgs): Promise<void> {
 	return consumeSse<SchemaAgentEvent>(
-		'/api/schema-agent/',
+		`${API_BASE}/schema-agent/`,
 		{
 			query,
 			// The schema agent uses `thread_id` as the project slug.
@@ -152,4 +196,25 @@ export function streamSchemaAgent({
 		onEvent,
 		signal,
 	);
+}
+
+/** Ask the backend to cancel an in-flight run. Best-effort — the SSE stream's
+ *  `cancelled` event is the hard confirmation the run actually stopped. */
+export async function cancelRun(runId: string): Promise<void> {
+	if (!runId) return;
+	const access = tokens.getAccess();
+	try {
+		await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}/cancel/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...(access ? { Authorization: `Bearer ${access}` } : {}),
+			},
+		});
+	} catch (err) {
+		// Network failure mid-cancel is non-fatal — the local AbortController
+		// will still close the SSE stream and the backend's finally block
+		// eventually unregisters the run.
+		console.warn('[django-stream] cancelRun failed:', err);
+	}
 }

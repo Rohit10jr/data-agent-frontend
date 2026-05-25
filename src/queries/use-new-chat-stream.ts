@@ -11,7 +11,13 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
-import { streamSqlAgent, type AgentEvent } from '@/lib/django-stream';
+import {
+	streamSqlAgent,
+	cancelRun,
+	ConcurrentRunError,
+	type AgentEvent,
+	type AgentErrorPayload,
+} from '@/lib/django-stream';
 import {
 	chatHistoryQueryKey,
 	type ChatHistoryResponse,
@@ -32,9 +38,12 @@ export function useNewChatStream() {
 	const [liveUser, setLiveUser] = useState<HistoryMessage | null>(null);
 	const [liveAssistant, setLiveAssistant] = useState<HistoryMessage | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
-	const [streamError, setStreamError] = useState<string | undefined>();
+	const [streamError, setStreamError] = useState<AgentErrorPayload | undefined>();
 	const abortRef = useRef<AbortController | null>(null);
 	const threadIdRef = useRef<string | null>(null);
+	// run_id captured from the `run_started` SSE event — drives abort()'s
+	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
+	const runIdRef = useRef<string | null>(null);
 	// Captured copy of the current user message so the navigation handler
 	// can seed the cache with it without depending on stale state in the closure.
 	const liveUserRef = useRef<HistoryMessage | null>(null);
@@ -105,6 +114,17 @@ export function useNewChatStream() {
 					threadIdRef.current = event.thread_id;
 					// Flip the sidebar running indicator now that we have an id.
 					chatActivityStore.setRunning(event.thread_id, true);
+					break;
+				}
+
+				case 'run_started': {
+					runIdRef.current = event.run_id;
+					break;
+				}
+
+				case 'cancelled': {
+					// Backend has acknowledged the cancel. The stream will close
+					// next; the finally block in sendMessage handles cleanup.
 					break;
 				}
 
@@ -182,7 +202,14 @@ export function useNewChatStream() {
 				}
 
 				case 'error': {
-					setStreamError(event.error);
+					setStreamError({
+						code: event.code,
+						message: event.message,
+						retryable: event.retryable,
+						retry_after_seconds: event.retry_after_seconds,
+						run_id: event.run_id,
+						node: event.node,
+					});
 					break;
 				}
 
@@ -226,6 +253,7 @@ export function useNewChatStream() {
 			});
 			setIsStreaming(true);
 
+			runIdRef.current = null;
 			const controller = new AbortController();
 			abortRef.current = controller;
 
@@ -238,11 +266,29 @@ export function useNewChatStream() {
 					onEvent: handleEvent,
 				});
 			} catch (err) {
-				if ((err as Error).name !== 'AbortError') {
-					setStreamError(err instanceof Error ? err.message : String(err));
+				if (err instanceof ConcurrentRunError) {
+					setStreamError({
+						code: 'BAD_REQUEST',
+						message:
+							'A previous response is still running. Stop it before sending a new message.',
+						retryable: false,
+						retry_after_seconds: null,
+						run_id: err.existingRunId || null,
+						node: null,
+					});
+				} else if ((err as Error).name !== 'AbortError') {
+					setStreamError({
+						code: 'INTERNAL',
+						message: err instanceof Error ? err.message : String(err),
+						retryable: true,
+						retry_after_seconds: null,
+						run_id: null,
+						node: null,
+					});
 				}
 			} finally {
 				abortRef.current = null;
+				runIdRef.current = null;
 				setIsStreaming(false);
 
 				// Clear the sidebar spinner for this thread (set on thread_created).
@@ -280,7 +326,12 @@ export function useNewChatStream() {
 		[handleEvent, isStreaming, qc, liveUser, liveAssistant],
 	);
 
-	const abort = useCallback(() => abortRef.current?.abort(), []);
+	const abort = useCallback(() => {
+		// Tell the backend to stop (saves tokens + ends the run cleanly).
+		const runId = runIdRef.current;
+		if (runId) void cancelRun(runId);
+		abortRef.current?.abort();
+	}, []);
 
 	return { messages, sendMessage, abort, isStreaming, streamError };
 }
