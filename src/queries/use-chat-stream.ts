@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { streamSqlAgent, type AgentEvent } from '@/lib/django-stream';
+import { streamSqlAgent, cancelRun, ConcurrentRunError, type AgentEvent } from '@/lib/django-stream';
 import {
 	chatHistoryQueryKey,
 	useChatHistoryQuery,
@@ -29,6 +29,9 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [streamError, setStreamError] = useState<string | undefined>();
 	const abortRef = useRef<AbortController | null>(null);
+	// run_id captured from the `run_started` SSE event — used by abort() to
+	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
+	const runIdRef = useRef<string | null>(null);
 
 	const messages = useMemo<HistoryMessage[]>(() => {
 		const base = history.data?.messages ?? [];
@@ -41,6 +44,17 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	const handleEvent = useCallback(
 		(event: AgentEvent) => {
 			switch (event.type) {
+				case 'run_started': {
+					runIdRef.current = event.run_id;
+					break;
+				}
+
+				case 'cancelled': {
+					// Backend has acknowledged the cancel. The stream will close
+					// next; the finally block in sendMessage handles cleanup.
+					break;
+				}
+
 				case 'token': {
 					const partType: 'reasoning' | 'text' = event.kind === 'reasoning' ? 'reasoning' : 'text';
 					setLiveAssistant((prev) => {
@@ -155,6 +169,7 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 			// Surface a per-thread running indicator in the sidebar.
 			chatActivityStore.setRunning(threadId, true);
 
+			runIdRef.current = null;
 			const controller = new AbortController();
 			abortRef.current = controller;
 
@@ -167,11 +182,16 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 					onEvent: handleEvent,
 				});
 			} catch (err) {
-				if ((err as Error).name !== 'AbortError') {
+				if (err instanceof ConcurrentRunError) {
+					setStreamError(
+						'A previous response is still running. Stop it before sending a new message.',
+					);
+				} else if ((err as Error).name !== 'AbortError') {
 					setStreamError(err instanceof Error ? err.message : String(err));
 				}
 			} finally {
 				abortRef.current = null;
+				runIdRef.current = null;
 				setIsStreaming(false);
 				chatActivityStore.setRunning(threadId, false);
 
@@ -200,6 +220,11 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	);
 
 	const abort = useCallback(() => {
+		// Tell the backend to stop (saves tokens + ends the run cleanly).
+		// Fire-and-forget — we close the local SSE connection right after so
+		// the UI returns to idle even if /cancel is slow or fails.
+		const runId = runIdRef.current;
+		if (runId) void cancelRun(runId);
 		abortRef.current?.abort();
 	}, []);
 

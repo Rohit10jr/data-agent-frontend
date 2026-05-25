@@ -10,6 +10,8 @@ import { useNavigate } from '@tanstack/react-router';
 
 import {
 	streamSchemaAgent,
+	cancelRun,
+	ConcurrentRunError,
 	type SchemaAgentEvent,
 } from '@/lib/django-stream';
 import {
@@ -57,6 +59,9 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const abortRef = useRef<AbortController | null>(null);
 	const slugRef = useRef<string | undefined>(slug);
 	const hasNavigatedRef = useRef(false);
+	// run_id captured from the `run_started` SSE event — drives abort()'s
+	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
+	const runIdRef = useRef<string | null>(null);
 	// Refs shadow the state above so the `finally` block sees the latest
 	// values even if its closure was created when state was still null
 	// (stale-closure trap with async functions + useCallback).
@@ -135,6 +140,17 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					break;
 				}
 
+				case 'run_started': {
+					runIdRef.current = event.run_id;
+					break;
+				}
+
+				case 'cancelled': {
+					// Backend has acknowledged the cancel. The stream will close
+					// next; the finally block in sendMessage handles cleanup.
+					break;
+				}
+
 				case 'node_start': {
 					commitNavigation();
 					setCurrentNode(event.label);
@@ -209,6 +225,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 			// New-project path: handleEvent will flip it on `thread_created` instead.
 			if (slug) chatActivityStore.setRunning(slug, true);
 
+			runIdRef.current = null;
 			const controller = new AbortController();
 			abortRef.current = controller;
 
@@ -221,11 +238,16 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					onEvent: handleEvent,
 				});
 			} catch (err) {
-				if ((err as Error).name !== 'AbortError') {
+				if (err instanceof ConcurrentRunError) {
+					setStreamError(
+						'A previous response is still running. Stop it before sending a new message.',
+					);
+				} else if ((err as Error).name !== 'AbortError') {
 					setStreamError(err instanceof Error ? err.message : String(err));
 				}
 			} finally {
 				abortRef.current = null;
+				runIdRef.current = null;
 				setIsStreaming(false);
 				setCurrentNode(null);
 
@@ -311,7 +333,12 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 		[slug, isStreaming, handleEvent, qc],
 	);
 
-	const abort = useCallback(() => abortRef.current?.abort(), []);
+	const abort = useCallback(() => {
+		// Tell the backend to stop (saves tokens + ends the run cleanly).
+		const runId = runIdRef.current;
+		if (runId) void cancelRun(runId);
+		abortRef.current?.abort();
+	}, []);
 
 	// Cleanup-on-unmount — only when slug was provided at hook init (refine
 	// case). For the new-project flow (no slug), the home page mounts the hook
