@@ -6,6 +6,7 @@ import type { HistoryPart, HistoryMessage } from '@/queries/use-chat-history-que
 import { Spinner } from '@/components/ui/spinner';
 import { ChatComposer } from '@/components/chat-composer';
 import { ChartRenderer } from '@/components/chart-renderer';
+import { AgentErrorBanner } from '@/components/chat/agent-error-banner';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
 import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,17 @@ function ChatDetailPage() {
 	const { messages, sendMessage, abort, isStreaming, isLoading, error, streamError } = useChatStream({
 		threadId: chatId,
 	});
+
+	// Cache the last submitted (text, opts) so the error banner's Retry button
+	// can resend the same prompt without the user retyping.
+	const lastSentRef = useRef<{ text: string; opts: Parameters<typeof sendMessage>[1] } | null>(null);
+	const handleSend = (text: string, opts: Parameters<typeof sendMessage>[1]) => {
+		lastSentRef.current = { text, opts };
+		return sendMessage(text, opts);
+	};
+	const handleRetry = () => {
+		if (lastSentRef.current) sendMessage(lastSentRef.current.text, lastSentRef.current.opts);
+	};
 
 	// Clear the unread dot when the user actually opens the chat.
 	useEffect(() => {
@@ -72,14 +84,14 @@ function ChatDetailPage() {
 						messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
 					)}
 					{streamError && (
-						<p className='text-sm text-red-500 text-center'>Error: {streamError}</p>
+						<AgentErrorBanner error={streamError} onRetry={handleRetry} />
 					)}
 					<div ref={bottomRef} />
 				</div>
 			</div>
 
 			<ChatComposer
-				onSend={sendMessage}
+				onSend={handleSend}
 				onAbort={abort}
 				isStreaming={isStreaming}
 			/>

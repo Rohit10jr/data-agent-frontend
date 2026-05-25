@@ -6,7 +6,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { streamSqlAgent, cancelRun, ConcurrentRunError, type AgentEvent } from '@/lib/django-stream';
+import {
+	streamSqlAgent,
+	cancelRun,
+	ConcurrentRunError,
+	type AgentEvent,
+	type AgentErrorPayload,
+} from '@/lib/django-stream';
 import {
 	chatHistoryQueryKey,
 	useChatHistoryQuery,
@@ -27,7 +33,7 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	const [liveUser, setLiveUser] = useState<HistoryMessage | null>(null);
 	const [liveAssistant, setLiveAssistant] = useState<HistoryMessage | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
-	const [streamError, setStreamError] = useState<string | undefined>();
+	const [streamError, setStreamError] = useState<AgentErrorPayload | undefined>();
 	const abortRef = useRef<AbortController | null>(null);
 	// run_id captured from the `run_started` SSE event — used by abort() to
 	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
@@ -128,7 +134,14 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 				}
 
 				case 'error': {
-					setStreamError(event.error);
+					setStreamError({
+						code: event.code,
+						message: event.message,
+						retryable: event.retryable,
+						retry_after_seconds: event.retry_after_seconds,
+						run_id: event.run_id,
+						node: event.node,
+					});
 					break;
 				}
 
@@ -183,11 +196,24 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 				});
 			} catch (err) {
 				if (err instanceof ConcurrentRunError) {
-					setStreamError(
-						'A previous response is still running. Stop it before sending a new message.',
-					);
+					setStreamError({
+						code: 'BAD_REQUEST',
+						message:
+							'A previous response is still running. Stop it before sending a new message.',
+						retryable: false,
+						retry_after_seconds: null,
+						run_id: err.existingRunId || null,
+						node: null,
+					});
 				} else if ((err as Error).name !== 'AbortError') {
-					setStreamError(err instanceof Error ? err.message : String(err));
+					setStreamError({
+						code: 'INTERNAL',
+						message: err instanceof Error ? err.message : String(err),
+						retryable: true,
+						retry_after_seconds: null,
+						run_id: null,
+						node: null,
+					});
 				}
 			} finally {
 				abortRef.current = null;

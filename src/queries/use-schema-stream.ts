@@ -13,6 +13,7 @@ import {
 	cancelRun,
 	ConcurrentRunError,
 	type SchemaAgentEvent,
+	type AgentErrorPayload,
 } from '@/lib/django-stream';
 import {
 	SCHEMA_LIST_QUERY_KEY,
@@ -36,7 +37,7 @@ export interface SchemaStreamState {
 	liveSqlTable: string | null;
 	liveSqlSeed: string | null;
 	isStreaming: boolean;
-	streamError?: string;
+	streamError?: AgentErrorPayload;
 }
 
 interface UseSchemaStreamOptions {
@@ -54,7 +55,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const [liveSqlTable, setLiveSqlTable] = useState<string | null>(null);
 	const [liveSqlSeed, setLiveSqlSeed] = useState<string | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
-	const [streamError, setStreamError] = useState<string | undefined>();
+	const [streamError, setStreamError] = useState<AgentErrorPayload | undefined>();
 
 	const abortRef = useRef<AbortController | null>(null);
 	const slugRef = useRef<string | undefined>(slug);
@@ -194,7 +195,14 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				}
 
 				case 'error': {
-					setStreamError(event.error);
+					setStreamError({
+						code: event.code,
+						message: event.message,
+						retryable: event.retryable,
+						retry_after_seconds: event.retry_after_seconds,
+						run_id: event.run_id,
+						node: event.node,
+					});
 					break;
 				}
 
@@ -239,11 +247,24 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				});
 			} catch (err) {
 				if (err instanceof ConcurrentRunError) {
-					setStreamError(
-						'A previous response is still running. Stop it before sending a new message.',
-					);
+					setStreamError({
+						code: 'BAD_REQUEST',
+						message:
+							'A previous response is still running. Stop it before sending a new message.',
+						retryable: false,
+						retry_after_seconds: null,
+						run_id: err.existingRunId || null,
+						node: null,
+					});
 				} else if ((err as Error).name !== 'AbortError') {
-					setStreamError(err instanceof Error ? err.message : String(err));
+					setStreamError({
+						code: 'INTERNAL',
+						message: err instanceof Error ? err.message : String(err),
+						retryable: true,
+						retry_after_seconds: null,
+						run_id: null,
+						node: null,
+					});
 				}
 			} finally {
 				abortRef.current = null;

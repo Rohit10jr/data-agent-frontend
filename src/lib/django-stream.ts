@@ -3,6 +3,29 @@
 
 import { tokens } from './tokens';
 
+/** Stable error codes emitted by the backend's `classify_error`. */
+export type AgentErrorCode =
+	| 'RATE_LIMIT'
+	| 'CONTEXT_OVERFLOW'
+	| 'BAD_REQUEST'
+	| 'AUTH'
+	| 'PROVIDER_TIMEOUT'
+	| 'PROVIDER_NETWORK'
+	| 'PROVIDER_DOWN'
+	| 'DB_DOWN'
+	| 'SCHEMA'
+	| 'RECURSION_LIMIT'
+	| 'INTERNAL';
+
+export interface AgentErrorPayload {
+	code: AgentErrorCode;
+	message: string;
+	retryable: boolean;
+	retry_after_seconds: number | null;
+	run_id: string | null;
+	node: string | null;
+}
+
 export type AgentEvent =
 	| { type: 'thread_created'; thread_id: string; connection_id: string }
 	| { type: 'run_started'; run_id: string }
@@ -13,7 +36,7 @@ export type AgentEvent =
 	| { type: 'done'; text: string }
 	| { type: 'cancelled'; run_id: string }
 	| { type: 'title'; thread_id: string; title: string }
-	| { type: 'error'; error: string };
+	| ({ type: 'error' } & AgentErrorPayload);
 
 // Schema-agent SSE event shapes. Same SSE wire format as the SQL agent, but
 // emits a different mix of events (no tool_start / tool_result; instead
@@ -36,7 +59,7 @@ export type SchemaAgentEvent =
 	| { type: 'done'; text: string }
 	| { type: 'cancelled'; run_id: string }
 	| { type: 'title'; slug: string; title: string }
-	| { type: 'error'; error: string };
+	| ({ type: 'error' } & AgentErrorPayload);
 
 /** Thrown when the backend returns 409 — another run is in flight on this thread. */
 export class ConcurrentRunError extends Error {

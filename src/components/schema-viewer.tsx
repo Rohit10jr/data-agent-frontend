@@ -43,6 +43,7 @@ import {
 	useSchemaStream,
 } from '@/queries/use-schema-stream';
 import { ChatComposer } from '@/components/chat-composer';
+import { AgentErrorBanner } from '@/components/chat/agent-error-banner';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
 import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
@@ -116,6 +117,15 @@ function parseTables(schemaTable: string | null): ParsedTable[] {
 export function SchemaViewer({ slug }: Props) {
 	const project = useSchemaProjectQuery(slug);
 	const stream = useSchemaStream({ slug });
+
+	// Cache the last submitted message so the error banner's Retry button
+	// can resend the same prompt without the user retyping.
+	const lastSentRef = useRef<{ text: string; model: string | undefined } | null>(null);
+	const handleRetry = () => {
+		if (lastSentRef.current) {
+			void stream.sendMessage(lastSentRef.current.text, lastSentRef.current.model);
+		}
+	};
 
 	// Clear the sidebar unread dot when this project is actually opened.
 	useEffect(() => {
@@ -220,7 +230,10 @@ function SchemaChatPane({
 				)}
 
 				{stream.streamError && (
-					<p className='text-xs text-red-500'>{stream.streamError}</p>
+					<AgentErrorBanner
+						error={stream.streamError}
+						onRetry={handleRetry}
+					/>
 				)}
 
 				<div ref={bottomRef} />
@@ -231,7 +244,10 @@ function SchemaChatPane({
 				showConnectionPicker={false}
 				isStreaming={stream.isStreaming}
 				onAbort={stream.abort}
-				onSend={(text, opts) => stream.sendMessage(text, opts.model)}
+				onSend={(text, opts) => {
+					lastSentRef.current = { text, model: opts.model };
+					return stream.sendMessage(text, opts.model);
+				}}
 				placeholder={
 					hasSlug
 						? 'Refine the schema, e.g. "add a posts table with an author FK"'
