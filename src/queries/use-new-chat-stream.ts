@@ -228,7 +228,14 @@ export function useNewChatStream() {
 			const trimmed = text.trim();
 			if (!trimmed || isStreaming) return;
 			if (!opts.connectionId) {
-				setStreamError('Pick a database before sending.');
+				setStreamError({
+					code: 'BAD_REQUEST',
+					message: 'Pick a database before sending.',
+					retryable: false,
+					retry_after_seconds: null,
+					run_id: null,
+					node: null,
+				});
 				return;
 			}
 

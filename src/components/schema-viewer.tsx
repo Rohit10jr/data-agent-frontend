@@ -118,15 +118,6 @@ export function SchemaViewer({ slug }: Props) {
 	const project = useSchemaProjectQuery(slug);
 	const stream = useSchemaStream({ slug });
 
-	// Cache the last submitted message so the error banner's Retry button
-	// can resend the same prompt without the user retyping.
-	const lastSentRef = useRef<{ text: string; model: string | undefined } | null>(null);
-	const handleRetry = () => {
-		if (lastSentRef.current) {
-			void stream.sendMessage(lastSentRef.current.text, lastSentRef.current.model);
-		}
-	};
-
 	// Clear the sidebar unread dot when this project is actually opened.
 	useEffect(() => {
 		if (slug) chatActivityStore.setUnread(slug, false);
@@ -194,6 +185,15 @@ function SchemaChatPane({
 	hasSlug: boolean;
 }) {
 	const bottomRef = useRef<HTMLDivElement>(null);
+
+	// Cache the last submitted message so the error banner's Retry button
+	// can resend the same prompt without the user retyping.
+	const lastSentRef = useRef<{ text: string; model: string | undefined } | null>(null);
+	const handleRetry = () => {
+		if (lastSentRef.current) {
+			void stream.sendMessage(lastSentRef.current.text, lastSentRef.current.model);
+		}
+	};
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
