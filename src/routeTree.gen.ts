@@ -22,7 +22,6 @@ import { Route as SidebarLayoutConnectionsRouteImport } from './routes/_sidebar-
 import { Route as SidebarLayoutChatLayoutRouteImport } from './routes/_sidebar-layout._chat-layout'
 import { Route as SidebarLayoutSettingsIndexRouteImport } from './routes/_sidebar-layout.settings.index'
 import { Route as SidebarLayoutChatLayoutIndexRouteImport } from './routes/_sidebar-layout._chat-layout.index'
-import { Route as SidebarLayoutSharedChatShareIdRouteImport } from './routes/_sidebar-layout.shared-chat.$shareId'
 import { Route as SidebarLayoutSettingsUsageRouteImport } from './routes/_sidebar-layout.settings.usage'
 import { Route as SidebarLayoutSettingsMemoryRouteImport } from './routes/_sidebar-layout.settings.memory'
 import { Route as SidebarLayoutSettingsAccountRouteImport } from './routes/_sidebar-layout.settings.account'
@@ -95,12 +94,6 @@ const SidebarLayoutChatLayoutIndexRoute =
     path: '/',
     getParentRoute: () => SidebarLayoutChatLayoutRoute,
   } as any)
-const SidebarLayoutSharedChatShareIdRoute =
-  SidebarLayoutSharedChatShareIdRouteImport.update({
-    id: '/shared-chat/$shareId',
-    path: '/shared-chat/$shareId',
-    getParentRoute: () => SidebarLayoutRoute,
-  } as any)
 const SidebarLayoutSettingsUsageRoute =
   SidebarLayoutSettingsUsageRouteImport.update({
     id: '/usage',
@@ -147,7 +140,6 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof SidebarLayoutSettingsAccountRoute
   '/settings/memory': typeof SidebarLayoutSettingsMemoryRoute
   '/settings/usage': typeof SidebarLayoutSettingsUsageRoute
-  '/shared-chat/$shareId': typeof SidebarLayoutSharedChatShareIdRoute
   '/settings/': typeof SidebarLayoutSettingsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -165,7 +157,6 @@ export interface FileRoutesByTo {
   '/settings/account': typeof SidebarLayoutSettingsAccountRoute
   '/settings/memory': typeof SidebarLayoutSettingsMemoryRoute
   '/settings/usage': typeof SidebarLayoutSettingsUsageRoute
-  '/shared-chat/$shareId': typeof SidebarLayoutSharedChatShareIdRoute
   '/settings': typeof SidebarLayoutSettingsIndexRoute
 }
 export interface FileRoutesById {
@@ -186,7 +177,6 @@ export interface FileRoutesById {
   '/_sidebar-layout/settings/account': typeof SidebarLayoutSettingsAccountRoute
   '/_sidebar-layout/settings/memory': typeof SidebarLayoutSettingsMemoryRoute
   '/_sidebar-layout/settings/usage': typeof SidebarLayoutSettingsUsageRoute
-  '/_sidebar-layout/shared-chat/$shareId': typeof SidebarLayoutSharedChatShareIdRoute
   '/_sidebar-layout/_chat-layout/': typeof SidebarLayoutChatLayoutIndexRoute
   '/_sidebar-layout/settings/': typeof SidebarLayoutSettingsIndexRoute
 }
@@ -208,7 +198,6 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/memory'
     | '/settings/usage'
-    | '/shared-chat/$shareId'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -226,7 +215,6 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/settings/memory'
     | '/settings/usage'
-    | '/shared-chat/$shareId'
     | '/settings'
   id:
     | '__root__'
@@ -246,7 +234,6 @@ export interface FileRouteTypes {
     | '/_sidebar-layout/settings/account'
     | '/_sidebar-layout/settings/memory'
     | '/_sidebar-layout/settings/usage'
-    | '/_sidebar-layout/shared-chat/$shareId'
     | '/_sidebar-layout/_chat-layout/'
     | '/_sidebar-layout/settings/'
   fileRoutesById: FileRoutesById
@@ -355,13 +342,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SidebarLayoutChatLayoutIndexRouteImport
       parentRoute: typeof SidebarLayoutChatLayoutRoute
     }
-    '/_sidebar-layout/shared-chat/$shareId': {
-      id: '/_sidebar-layout/shared-chat/$shareId'
-      path: '/shared-chat/$shareId'
-      fullPath: '/shared-chat/$shareId'
-      preLoaderRoute: typeof SidebarLayoutSharedChatShareIdRouteImport
-      parentRoute: typeof SidebarLayoutRoute
-    }
     '/_sidebar-layout/settings/usage': {
       id: '/_sidebar-layout/settings/usage'
       path: '/usage'
@@ -440,7 +420,6 @@ interface SidebarLayoutRouteChildren {
   SidebarLayoutConnectionsRoute: typeof SidebarLayoutConnectionsRoute
   SidebarLayoutSettingsRoute: typeof SidebarLayoutSettingsRouteWithChildren
   SidebarLayoutSchemaSlugRoute: typeof SidebarLayoutSchemaSlugRoute
-  SidebarLayoutSharedChatShareIdRoute: typeof SidebarLayoutSharedChatShareIdRoute
 }
 
 const SidebarLayoutRouteChildren: SidebarLayoutRouteChildren = {
@@ -448,7 +427,6 @@ const SidebarLayoutRouteChildren: SidebarLayoutRouteChildren = {
   SidebarLayoutConnectionsRoute: SidebarLayoutConnectionsRoute,
   SidebarLayoutSettingsRoute: SidebarLayoutSettingsRouteWithChildren,
   SidebarLayoutSchemaSlugRoute: SidebarLayoutSchemaSlugRoute,
-  SidebarLayoutSharedChatShareIdRoute: SidebarLayoutSharedChatShareIdRoute,
 }
 
 const SidebarLayoutRouteWithChildren = SidebarLayoutRoute._addFileChildren(
