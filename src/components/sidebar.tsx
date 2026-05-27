@@ -16,17 +16,14 @@ import {
   Database,
 } from "lucide-react";
 import { ChatListItem } from "./sidebar-chat-list-item";
-import { SharedChatListItem } from "./shared-chat-list-item";
 import { SidebarSchemaSection } from "./sidebar-schema-section";
 import { SidebarStarredSection } from "./sidebar-starred-section";
 import { SidebarSectionHeader } from "./sidebar-section-header";
 import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarSettingsNav } from "./sidebar-settings-nav";
 
-import StoryIcon from "./ui/story-icon";
 import type { LucideIcon } from "lucide-react";
 import type { ChatListItem as ChatListItemType } from "@nao/backend/chat";
-import type { SharedChatWithDetails } from "@nao/backend/shared-chat";
 import { Button } from "@/components/ui/button";
 import { getActiveProjectId, setActiveProjectId } from "@/lib/active-project";
 import { cn, hideIf } from "@/lib/utils";
@@ -36,10 +33,6 @@ import { useCommandMenuCallback } from "@/contexts/command-menu-callback";
 import { useSectionActivity } from "@/hooks/use-chat-activity";
 import NaoLogo from "@/components/icons/nao-logo.svg";
 import { trpc } from "@/main";
-
-type MixedItem =
-  | { kind: "own"; data: ChatListItemType }
-  | { kind: "shared"; data: SharedChatWithDetails };
 
 const normalizeDate = (v: Date | number | string): number =>
   v instanceof Date ? v.getTime() : Number(v);
@@ -75,13 +68,6 @@ export function Sidebar() {
 
   const handleStartNewChat = useCallback(() => {
     navigate({ to: "/" });
-    if (isMobile) {
-      closeMobile();
-    }
-  }, [navigate, isMobile, closeMobile]);
-
-  const handleNavigateStories = useCallback(() => {
-    navigate({ to: "/stories" });
     if (isMobile) {
       closeMobile();
     }
@@ -243,14 +229,6 @@ export function Sidebar() {
               isCollapsed={effectiveIsCollapsed}
               onClick={handleNavigateConnections}
             />
-            {/* Stories — hidden for now until backend implements story endpoints. */}
-            {/* <SidebarMenuButton
-							icon={StoryIcon as unknown as LucideIcon}
-							label='Stories'
-							shortcut=''
-							isCollapsed={effectiveIsCollapsed}
-							onClick={handleNavigateStories}
-						/> */}
           </>
         )}
       </div>
@@ -355,7 +333,6 @@ function SidebarNav({
   const [chatsOpen, setChatsOpen] = useState(
     () => localStorage.getItem("sidebar-chats-open") !== "false",
   );
-  const [sharedOpen, setSharedOpen] = useState(false);
 
   const toggleChats = useCallback(() => {
     setChatsOpen((prev) => {
@@ -367,39 +344,14 @@ function SidebarNav({
   // Starred chats are rendered in the unified Starred section at the top of
   // the sidebar — drop them from this list so they don't appear twice.
   const { regular, regularIds } = useMemo(() => {
-    const rest = chats.filter((c) => !c.isStarred);
+    const rest = chats
+      .filter((c) => !c.isStarred)
+      .slice()
+      .sort((a, b) => normalizeDate(b.createdAt) - normalizeDate(a.createdAt));
     return { regular: rest, regularIds: rest.map((c) => c.id) };
   }, [chats]);
 
   const chatsActivity = useSectionActivity(regularIds);
-
-  const sharedChatsQuery = useQuery(trpc.sharedChat.list.queryOptions());
-  const allOwnChatIds = useMemo(
-    () => new Set(chats.map((c) => c.id)),
-    [chats],
-  );
-  const sharedWithMeChats = useMemo((): SharedChatWithDetails[] => {
-    if (!sharedChatsQuery.data) {
-      return [];
-    }
-    return sharedChatsQuery.data.filter((sc) => !allOwnChatIds.has(sc.chatId));
-  }, [sharedChatsQuery.data, allOwnChatIds]);
-
-  const mixedList = useMemo((): MixedItem[] => {
-    const own: MixedItem[] = regular.map((chat) => ({
-      kind: "own",
-      data: chat,
-    }));
-    const shared: MixedItem[] = sharedWithMeChats.map((sc) => ({
-      kind: "shared",
-      data: sc,
-    }));
-
-    return [...own, ...shared].sort(
-      (a, b) =>
-        normalizeDate(b.data.createdAt) - normalizeDate(a.data.createdAt),
-    );
-  }, [regular, sharedWithMeChats]);
 
   return (
     <div
@@ -416,46 +368,22 @@ function SidebarNav({
           isOpen={chatsOpen}
           onToggle={toggleChats}
           activity={chatsActivity}
-          sharedOpen={sharedOpen}
-          onToggleShared={() => setSharedOpen((prev) => !prev)}
         />
       </div>
 
-      {chatsOpen &&
-        (!sharedOpen ? (
-          <div className="w-60 flex-1 overflow-y-auto px-2 space-y-1">
-            {mixedList.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center p-4">
-                No chats yet.
-                <br />
-                Start a new chat!
-              </p>
-            ) : (
-              mixedList.map((item) =>
-                item.kind === "own" ? (
-                  <ChatListItem key={item.data.id} chat={item.data} />
-                ) : (
-                  <SharedChatListItem
-                    key={item.data.id}
-                    sharedChat={item.data}
-                  />
-                ),
-              )
-            )}
-          </div>
-        ) : (
-          <div className="w-60 flex-1 flex-col overflow-y-auto px-2 space-y-1 gap-0.5">
-            {sharedWithMeChats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center p-4">
-                No chats shared with you.
-              </p>
-            ) : (
-              sharedWithMeChats.map((sc) => (
-                <SharedChatListItem key={sc.id} sharedChat={sc} />
-              ))
-            )}
-          </div>
-        ))}
+      {chatsOpen && (
+        <div className="w-60 flex-1 overflow-y-auto px-2 space-y-1">
+          {regular.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center p-4">
+              No chats yet.
+              <br />
+              Start a new chat!
+            </p>
+          ) : (
+            regular.map((chat) => <ChatListItem key={chat.id} chat={chat} />)
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -464,14 +392,10 @@ function ChatsSectionHeader({
   isOpen,
   onToggle,
   activity,
-  sharedOpen,
-  onToggleShared,
 }: {
   isOpen: boolean;
   onToggle: () => void;
   activity?: { running: boolean; unread: boolean };
-  sharedOpen: boolean;
-  onToggleShared: () => void;
 }) {
   return (
     <SidebarSectionHeader
@@ -479,25 +403,6 @@ function ChatsSectionHeader({
       isOpen={isOpen}
       onToggle={onToggle}
       activity={activity}
-      // extra={
-      // 	<Button
-      // 		onClick={(e) => {
-      // 			e.stopPropagation();
-      // 			onToggleShared();
-      // 		}}
-      // 		className={cn(
-      // 			'transition-[opacity,border-color,background-color] duration-200 p-2 h-5 rounded-sm border',
-      // 			sharedOpen ? 'opacity-90' : 'opacity-0 group-hover:opacity-90',
-      // 			'border-border text-muted-foreground hover:text-muted-foreground',
-      // 			'hover:border-foreground hover:bg-foreground hover:text-background',
-      // 			sharedOpen && 'border-foreground bg-foreground text-background',
-      // 		)}
-      // 		variant='ghost-no-hover'
-      // 		size='sm'
-      // 	>
-      // 		{/* <span className='text-[10px]'>Shared with me</span> */}
-      // 	</Button>
-      // }
     />
   );
 }

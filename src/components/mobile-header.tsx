@@ -1,9 +1,8 @@
 import { PanelLeft } from 'lucide-react';
-import { EditableChatTitle } from '@/components/editable-chat-title';
 import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/contexts/sidebar';
 
-export function MobileHeader({ chatId, title }: { chatId?: string; title?: string }) {
+export function MobileHeader() {
 	const { isMobile, openMobile } = useSidebar();
 
 	if (!isMobile) {
@@ -15,13 +14,6 @@ export function MobileHeader({ chatId, title }: { chatId?: string; title?: strin
 			<Button variant='outline' size='sm' onClick={openMobile} className='gap-2 rounded-full px-3 shadow-none'>
 				<PanelLeft className='size-4 shrink-0' strokeWidth={1.5} />
 			</Button>
-			{chatId && title && (
-				<EditableChatTitle
-					chatId={chatId}
-					title={title}
-					className='text-sm text-muted-foreground min-w-0 flex-1'
-				/>
-			)}
 		</div>
 	);
 }

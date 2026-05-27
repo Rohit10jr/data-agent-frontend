@@ -5,7 +5,6 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PostHogProvider } from './contexts/posthog.provider';
 import { ThemeProvider } from './contexts/theme.provider';
-import { McpProvider } from './contexts/mcp';
 import { routeTree } from './routeTree.gen';
 import reportWebVitals from './reportWebVitals';
 
@@ -100,11 +99,9 @@ if (!rootElement.innerHTML) {
 		<StrictMode>
 			<ThemeProvider>
 				<QueryClientProvider client={queryClient}>
-					<McpProvider>
-						<PostHogProvider>
-							<RouterProvider router={router} />
-						</PostHogProvider>
-					</McpProvider>
+					<PostHogProvider>
+						<RouterProvider router={router} />
+					</PostHogProvider>
 				</QueryClientProvider>
 			</ThemeProvider>
 		</StrictMode>,
