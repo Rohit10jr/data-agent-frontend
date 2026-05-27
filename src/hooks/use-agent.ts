@@ -10,7 +10,7 @@ import { useChatId } from './use-chat-id';
 import type { FileUIPart, InferUIMessageChunk } from 'ai';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { UIMessage } from '@/types/chat-types';
-import type { MentionOption } from 'prompt-mentions';
+import type { MentionOption } from '@/types/chat-message-queue';
 import type { ImageUploadData, LlmSelectedModel } from '@nao/shared/types';
 import { messageQueueStore } from '@/stores/chat-message-queue';
 import { chatActivityStore } from '@/stores/chat-activity';
