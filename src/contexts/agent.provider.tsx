@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from 'react';
-import type { UIMessage } from '@nao/backend/chat';
+import type { UIMessage } from '@/types/chat-types';
 
 import type { AgentHelpers } from '@/hooks/use-agent';
 import { useAgent, useSyncMessages } from '@/hooks/use-agent';

@@ -23,7 +23,7 @@ import { SidebarUserMenu } from "./sidebar-user-menu";
 import { SidebarSettingsNav } from "./sidebar-settings-nav";
 
 import type { LucideIcon } from "lucide-react";
-import type { ChatListItem as ChatListItemType } from "@nao/backend/chat";
+import type { ChatListItem as ChatListItemType } from "@/queries/use-chat-list-query";
 import { Button } from "@/components/ui/button";
 import { getActiveProjectId, setActiveProjectId } from "@/lib/active-project";
 import { cn, hideIf } from "@/lib/utils";

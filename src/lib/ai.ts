@@ -6,7 +6,7 @@ import {
 } from 'ai';
 import type { ReasoningUIPart, ToolUIPart } from 'ai';
 import type { UseChatHelpers } from '@ai-sdk/react';
-import type { UITools, UIToolPart, UIMessage, UIMessagePart, StaticToolName } from '@nao/backend/chat';
+import type { UITools, UIToolPart, UIMessage, UIMessagePart, StaticToolName } from '@/types/chat-types';
 import type { GroupablePart, ToolGroupPart, GroupedMessagePart, MessageGroup } from '@/types/ai';
 
 /** The ID used for new chats not yet persisted to the db. */

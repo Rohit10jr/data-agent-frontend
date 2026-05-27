@@ -14,7 +14,7 @@ import { InputEdit } from './ui/input-edit';
 import { Spinner } from './ui/spinner';
 import type { ComponentProps } from 'react';
 
-import type { ChatListItem } from '@nao/backend/chat';
+import type { ChatListItem } from '@/queries/use-chat-list-query';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useTimeAgo } from '@/hooks/use-time-ago';

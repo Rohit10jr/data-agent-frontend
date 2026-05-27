@@ -23,20 +23,7 @@
 			"@/*": ["./src/*"],
 
 			"@nao/shared": ["./shared/src/index.ts"],
-			"@nao/shared/*": ["./shared/src/*"],
-
-			"@nao/backend": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/index.ts"],
-			"@nao/backend/trpc": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/trpc/router.ts"],
-			"@nao/backend/chat": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/chat.ts"],
-			"@nao/backend/usage": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/usage.ts"],
-			"@nao/backend/llm": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/llm.ts"],
-			"@nao/backend/memory": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/memory.ts"],
-			"@nao/backend/saved-prompts": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/saved-prompt.ts"],
-			"@nao/backend/log": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/types/log.ts"],
-			"@nao/backend/tools": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/agents/tools/index.ts"],
-			"@nao/backend/providers": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/agents/providers.ts"],
-			"@nao/backend/provider-meta": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/agents/provider-meta.ts"],
-			"@nao/backend/shared-chat": ["D:/02_Personal/01_OpenSource/03_Applications/agent_sql/nao/apps/backend/src/queries/shared-chat.queries.ts"]
+			"@nao/shared/*": ["./shared/src/*"]
 		}
 	}
 }

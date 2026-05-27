@@ -1,5 +1,5 @@
 import type { Chat } from '@ai-sdk/react';
-import type { UIMessage } from '@nao/backend/chat';
+import type { UIMessage } from '@/types/chat-types';
 
 /** An agent is a chat instance with tools */
 export type Agent = Chat<UIMessage>;
