@@ -7,6 +7,7 @@ import {
 	CommandEmpty,
 	CommandGroup,
 	CommandInput,
+	CommandItem,
 	CommandList,
 } from '@/components/ui/command';
 import { useRegisterCommandMenuCallback } from '@/contexts/command-menu-callback';
