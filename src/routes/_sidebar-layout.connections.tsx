@@ -4,6 +4,16 @@ import { useState } from 'react';
 import { Database, Plus, Pencil, Trash2, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConnectionFormDialog } from '@/components/connection-form-dialog';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { connectionsApi, type Connection } from '@/lib/connections';
 
 export const Route = createFileRoute('/_sidebar-layout/connections')({
@@ -19,6 +29,7 @@ function ConnectionsPage() {
 
 	const [formOpen, setFormOpen] = useState(false);
 	const [editingConnection, setEditingConnection] = useState<Connection | undefined>();
+	const [pendingDelete, setPendingDelete] = useState<Connection | null>(null);
 
 	const deleteMut = useMutation({
 		mutationFn: (id: string) => connectionsApi.delete(id),
@@ -51,8 +62,13 @@ function ConnectionsPage() {
 	};
 
 	const handleDelete = (c: Connection) => {
-		if (confirm(`Delete connection "${c.name}"? This cannot be undone.`)) {
-			deleteMut.mutate(c.id);
+		setPendingDelete(c);
+	};
+
+	const handleConfirmDelete = () => {
+		if (pendingDelete) {
+			deleteMut.mutate(pendingDelete.id);
+			setPendingDelete(null);
 		}
 	};
 
@@ -123,6 +139,26 @@ function ConnectionsPage() {
 			</div>
 
 			<ConnectionFormDialog open={formOpen} onOpenChange={setFormOpen} connection={editingConnection} />
+
+			<AlertDialog
+				open={pendingDelete !== null}
+				onOpenChange={(open) => !open && setPendingDelete(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete connection?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Delete connection &ldquo;{pendingDelete?.name}&rdquo;? This cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction variant='destructive' onClick={handleConfirmDelete}>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

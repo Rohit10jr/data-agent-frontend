@@ -29,6 +29,16 @@ import {
 import { InputEdit } from '@/components/ui/input-edit';
 import { Link } from '@/components/ui/link';
 import { SidebarSectionHeader } from '@/components/sidebar-section-header';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const STORAGE_KEY = 'sidebar-schemas-open';
 
@@ -86,6 +96,7 @@ export function SchemaProjectListRow({ project }: { project: SchemaProjectListIt
 	const activity = useChatActivity(project.slug);
 	const [draft, setDraft] = useState(project.name ?? 'New Project');
 	const [isRenaming, setIsRenaming] = useState(false);
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
 	const handleSubmit = async () => {
 		const trimmed = draft.trim();
@@ -110,11 +121,13 @@ export function SchemaProjectListRow({ project }: { project: SchemaProjectListIt
 	};
 
 	const handleDeleteSelect = () => {
-		if (confirm(`Delete "${project.name ?? 'this schema'}"? This cannot be undone.`)) {
-			remove.mutate(project.slug, {
-				onSuccess: () => navigate({ to: '/' }),
-			});
-		}
+		setConfirmDeleteOpen(true);
+	};
+
+	const handleConfirmDelete = () => {
+		remove.mutate(project.slug, {
+			onSuccess: () => navigate({ to: '/' }),
+		});
 	};
 
 	return (
@@ -181,6 +194,23 @@ export function SchemaProjectListRow({ project }: { project: SchemaProjectListIt
 							</DropdownMenuGroup>
 						</DropdownMenuContent>
 					</DropdownMenu>
+
+					<AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+						<AlertDialogContent onClick={(e) => e.stopPropagation()}>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Delete schema project?</AlertDialogTitle>
+								<AlertDialogDescription>
+									Delete &ldquo;{project.name ?? 'this schema'}&rdquo;? This cannot be undone.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction variant='destructive' onClick={handleConfirmDelete}>
+									Delete
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</>
 			)}
 		</Link>

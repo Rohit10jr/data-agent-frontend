@@ -12,6 +12,16 @@ import {
 } from './ui/dropdown-menu';
 import { InputEdit } from './ui/input-edit';
 import { Spinner } from './ui/spinner';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from './ui/alert-dialog';
 import type { ComponentProps } from 'react';
 
 import type { ChatListItem } from '@/queries/use-chat-list-query';
@@ -33,6 +43,7 @@ export function ChatListItem({ chat }: Props) {
 	const activity = useChatActivity(chat.id);
 	const [title, setTitle] = useState(chat.title);
 	const [isRenaming, setIsRenaming] = useState(false);
+	const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
 	// DELETE /api/threads/<thread_id>/  → removes the chat row.
 	const deleteChat = useMutation({
@@ -131,9 +142,7 @@ export function ChatListItem({ chat }: Props) {
 	};
 
 	const handleDeleteSelect = () => {
-		if (confirm(`Delete chat "${chat.title}"? This cannot be undone.`)) {
-			deleteChat.mutate(chat.id);
-		}
+		setConfirmDeleteOpen(true);
 	};
 
 	const handleDoubleClick = () => {
@@ -202,6 +211,26 @@ export function ChatListItem({ chat }: Props) {
 							</DropdownMenuGroup>
 						</DropdownMenuContent>
 					</DropdownMenu>
+
+					<AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+						<AlertDialogContent onClick={(e) => e.stopPropagation()}>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Delete chat?</AlertDialogTitle>
+								<AlertDialogDescription>
+									Delete chat &ldquo;{chat.title}&rdquo;? This cannot be undone.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									variant='destructive'
+									onClick={() => deleteChat.mutate(chat.id)}
+								>
+									Delete
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</>
 			)}
 		</Link>
