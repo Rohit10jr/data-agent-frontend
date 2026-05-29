@@ -136,6 +136,9 @@ export function SidebarSettingsNav({
 
 	return (
 		<div className={cn('flex flex-col gap-1', hideIf(isCollapsed))}>
+			{/* Settings search bar — commented out for now; settings are simple enough
+			    that a flat nav covers it. Restore the block below to re-enable. */}
+			{/*
 			<div className='px-2 pt-2'>
 				<div className='relative'>
 					<Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none' />
@@ -196,7 +199,8 @@ export function SidebarSettingsNav({
 					)}
 				</div>
 			) : (
-				<nav className='flex flex-col gap-1 px-2'>
+			*/}
+				<nav className='flex flex-col gap-1 px-2 pt-2'>
 					{navItems.map((item) => {
 						if (item.type === 'divider') {
 							return (
@@ -238,7 +242,9 @@ export function SidebarSettingsNav({
 						);
 					})}
 				</nav>
+			{/*
 			)}
+			*/}
 		</div>
 	);
 }
