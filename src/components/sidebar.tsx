@@ -211,14 +211,14 @@ export function Sidebar() {
             <SidebarMenuButton
               icon={PlusIcon}
               label="New chat"
-              shortcut="⇧⌘O"
+              shortcut=""
               isCollapsed={effectiveIsCollapsed}
               onClick={handleStartNewChat}
             />
             <SidebarMenuButton
               icon={SearchIcon}
               label="Search chats"
-              shortcut="⌘K"
+              shortcut=""
               isCollapsed={effectiveIsCollapsed}
               onClick={handleSearchChats}
             />
@@ -315,9 +315,11 @@ function SidebarMenuButton({
         )}
       >
         <span>{label}</span>
-        <kbd className="group-hover:opacity-100 opacity-0 absolute right-3 text-[10px] text-muted-foreground font-sans transition-opacity hidden md:inline">
-          {shortcut}
-        </kbd>
+        {shortcut && (
+          <kbd className="group-hover:opacity-100 opacity-0 absolute right-3 text-[10px] text-muted-foreground font-sans transition-opacity hidden md:inline">
+            {shortcut}
+          </kbd>
+        )}
       </div>
     </Button>
   );
