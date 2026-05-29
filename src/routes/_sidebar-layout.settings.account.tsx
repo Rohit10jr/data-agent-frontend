@@ -97,6 +97,8 @@ function GeneralPage() {
       />
 
       <SettingsCard title="General Settings" divide>
+        {/* Sound notification — commented out; revisit once we wire the audio
+            asset + permission flow. Uncomment to restore.
         <SettingsToggleRow
           id="sound-notification"
           label="Sound notification"
@@ -104,6 +106,7 @@ function GeneralPage() {
           checked={soundEnabled}
           onCheckedChange={setSoundEnabled}
         />
+        */}
         <SettingsControlRow
           label="Theme"
           description="Choose how Queryn looks."
