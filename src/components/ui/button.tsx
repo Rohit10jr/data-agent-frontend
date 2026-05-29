@@ -12,12 +12,20 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+        // Muted-red destructive: red text, no background; light-red tint on hover.
+        // Used for sign-out and other low-emphasis destructive actions.
+        "destructive-soft":
+          "text-destructive hover:bg-destructive/10 dark:text-destructive dark:hover:bg-destructive/20",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+        // Ghost with muted resting state — used for inline action buttons that
+        // should fade in only on hover (theme picker, memory item edit/delete).
+        "ghost-muted":
+          "text-muted-foreground hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -28,6 +36,7 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
+        "icon-md": "size-9",
         "icon-lg": "size-10",
       },
     },
