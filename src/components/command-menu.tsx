@@ -1,46 +1,24 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import {
-	DatabaseIcon,
-	MessageSquareIcon,
-	MessageSquarePlusIcon,
-	MoonIcon,
-	SunIcon,
-	UserIcon,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { DatabaseIcon, MessageSquareIcon } from 'lucide-react';
 
 import {
 	CommandDialog,
 	CommandEmpty,
 	CommandGroup,
 	CommandInput,
-	CommandItem,
 	CommandList,
-	CommandShortcut,
 } from '@/components/ui/command';
-import { useTheme } from '@/contexts/theme.provider';
 import { useRegisterCommandMenuCallback } from '@/contexts/command-menu-callback';
 import { useSearchChatsQuery } from '@/queries/use-search-chats-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { TextShimmer } from '@/components/ui/text-shimmer';
-
-type CommandConfig = {
-	id: string;
-	label: string;
-	icon: LucideIcon;
-	action: () => void;
-	shortcut?: string;
-	group: string;
-	visible?: boolean;
-};
 
 export function CommandMenu() {
 	const [open, setOpen] = useState(false);
 	const [searchValue, setSearchValue] = useState('');
 	const debouncedSearch = useDebouncedValue(searchValue, 300);
 	const navigate = useNavigate();
-	const { theme, setTheme } = useTheme();
 
 	const toggleOpen = useCallback(() => setOpen((prev) => !prev), []);
 	useRegisterCommandMenuCallback(toggleOpen, [toggleOpen]);
@@ -52,39 +30,6 @@ export function CommandMenu() {
 	const isSearchMode = searchValue.length >= 2;
 	const hasSearchResults = isSearchMode && searchResults && searchResults.length > 0;
 	const isPendingSearch = isSearchMode && (searchValue !== debouncedSearch || isSearching);
-
-	const commands: CommandConfig[] = useMemo(
-		() => [
-			{
-				id: 'new-chat',
-				label: 'New Chat',
-				icon: MessageSquarePlusIcon,
-				action: () => navigate({ to: '/' }),
-				shortcut: '⇧⌘O',
-				group: 'Jump to',
-			},
-			{
-				id: 'open-settings',
-				label: 'Open Account Settings',
-				icon: UserIcon,
-				action: () => navigate({ to: '/settings/account' }),
-				group: 'Jump to',
-			},
-			{
-				id: 'switch-mode',
-				label: `Switch ${theme === 'light' ? 'Dark' : 'Light'} Mode`,
-				icon: theme === 'light' ? MoonIcon : SunIcon,
-				action: () => {
-					setTheme(theme === 'light' ? 'dark' : 'light');
-				},
-				group: 'Actions',
-			},
-		],
-		[navigate, theme, setTheme],
-	);
-
-	const jumpToCommands = useMemo(() => commands.filter((cmd) => cmd.group === 'Jump to'), [commands]);
-	const actionCommands = useMemo(() => commands.filter((cmd) => cmd.group === 'Actions'), [commands]);
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -122,38 +67,20 @@ export function CommandMenu() {
 		[navigate],
 	);
 
-	const visibleActions = actionCommands.filter((cmd) => cmd.visible ?? true);
 	const showNoResults = !hasSearchResults && !isPendingSearch && isSearchMode;
 
 	return (
 		<CommandDialog open={open} onOpenChange={handleOpenChange} shouldFilter={false} loop>
 			<CommandInput
-				placeholder='Type a command or search conversations...'
+				placeholder='Search conversations...'
 				value={searchValue}
 				onValueChange={setSearchValue}
 			/>
 			<CommandList>
 				{showNoResults && <CommandEmpty>No results found.</CommandEmpty>}
 
-				{jumpToCommands.length > 0 && (
-					<CommandGroup heading='Jump to'>
-						{jumpToCommands.map((command) => (
-							<CommandItem
-								key={command.id}
-								value={command.id}
-								onSelect={() => runCommand(command.action)}
-							>
-								<command.icon />
-								<span>
-									{command.label}
-									{isSearchMode && (
-										<span className='text-muted-foreground'> &ldquo;{searchValue}&rdquo;</span>
-									)}
-								</span>
-								{command.shortcut && <CommandShortcut>{command.shortcut}</CommandShortcut>}
-							</CommandItem>
-						))}
-					</CommandGroup>
+				{!isSearchMode && (
+					<CommandEmpty>Type at least 2 characters to search your chats.</CommandEmpty>
 				)}
 
 				{hasSearchResults ? (
@@ -181,22 +108,6 @@ export function CommandMenu() {
 						<TextShimmer text='Searching deeper...' />
 					</div>
 				) : null}
-
-				{!isSearchMode && visibleActions.length > 0 && (
-					<CommandGroup heading='Actions'>
-						{visibleActions.map((command) => (
-							<CommandItem
-								key={command.id}
-								value={command.id}
-								onSelect={() => runCommand(command.action)}
-							>
-								<command.icon />
-								<span>{command.label}</span>
-								{command.shortcut && <CommandShortcut>{command.shortcut}</CommandShortcut>}
-							</CommandItem>
-						))}
-					</CommandGroup>
-				)}
 			</CommandList>
 		</CommandDialog>
 	);
