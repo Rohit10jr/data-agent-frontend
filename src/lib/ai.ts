@@ -138,16 +138,6 @@ export const isPartGroupable = (part: UIMessagePart): part is GroupablePart => {
 	return false;
 };
 
-export const getLastFollowUpSuggestionsToolCall = (
-	messages: UIMessage[],
-): UIToolPart<'suggest_follow_ups'> | undefined => {
-	const followUpSuggestionsToolCallPart = messages.at(-1)?.parts.find((p) => p.type === 'tool-suggest_follow_ups');
-	if (!followUpSuggestionsToolCallPart) {
-		return undefined;
-	}
-	return followUpSuggestionsToolCallPart;
-};
-
 export const getMessageText = (message: UIMessage): string => {
 	return message.parts
 		.filter((part) => part.type === 'text')
