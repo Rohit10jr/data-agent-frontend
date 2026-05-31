@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="qnfavg" x1="54" y1="6" x2="10" y2="58" gradientUnits="userSpaceOnUse">
+<stop stop-color="#C3C3C3"/>
+<stop offset="1" stop-color="#595959"/>
+</linearGradient>
+</defs>
+<path fill-rule="evenodd" clip-rule="evenodd" fill="url(#qnfavg)" d="M32 2 L62 32 L32 62 L2 32 Z M32 20 L44 32 L32 44 L20 32 Z"/>
+</svg>

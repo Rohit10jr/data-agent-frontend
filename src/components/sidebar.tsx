@@ -31,7 +31,7 @@ import { useChatListQuery } from "@/queries/use-chat-list-query";
 import { useSidebar } from "@/contexts/sidebar";
 import { useCommandMenuCallback } from "@/contexts/command-menu-callback";
 import { useSectionActivity } from "@/hooks/use-chat-activity";
-import NaoLogo from "@/components/icons/nao-logo.svg";
+import QueryNLogo from "@/components/icons/queryn-logo-plain.svg";
 import { trpc } from "@/main";
 
 const normalizeDate = (v: Date | number | string): number =>
@@ -180,7 +180,7 @@ export function Sidebar() {
                   hideIf(effectiveIsCollapsed),
                 )}
               >
-                <NaoLogo className="size-5" />
+                <QueryNLogo className="size-5" />
               </button>
 
               {isMobile ? (

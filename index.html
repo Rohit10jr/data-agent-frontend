@@ -1,22 +1,61 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="theme-color" content="#ffffff" />
-		<meta name="description" content="Use Queryn to chat with your data warehouse, display charts and share stories" />
-		<meta property="og:title" content="Queryn — Chat with your data" />
-		<meta
-			property="og:description"
-			content="Use Queryn to chat with your data warehouse, display charts and share stories"
-		/>
-		<meta property="og:type" content="website" />
-		<link rel="apple-touch-icon" href="/appicon.png" />
-		<title>Queryn — Chat with your data</title>
-	</head>
-	<body>
-		<div id="app"></div>
-		<script type="module" src="/src/main.tsx"></script>
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <link rel="icon" href="/queryn-logo-plain.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/queryn-favicon.svg" id="favicon" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="description"
+      content="Use QueryN to chat with your data warehouse, display charts and share stories"
+    />
+    <meta property="og:title" content="QueryN — Chat with your data" />
+    <meta
+      property="og:description"
+      content="Use QueryN to chat with your data warehouse, display charts and share stories"
+    />
+    <meta property="og:type" content="website" />
+    <link rel="apple-touch-icon" href="/queryn-logo-plain.png" />
+    <title>QueryN — Chat with your data</title>
+    <script>
+      // Swap the favicon to a greyscale QueryN mark when the browser goes offline,
+      // and back to the color mark when the connection returns. The grey mark is
+      // inlined as a data URI so it still renders with no network available.
+      (function () {
+        var initial = document.getElementById('favicon');
+        var colorHref = initial ? initial.getAttribute('href') : '/queryn-favicon.svg';
+        var greySvg =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">' +
+          '<defs><linearGradient id="g" x1="54" y1="6" x2="10" y2="58" gradientUnits="userSpaceOnUse">' +
+          '<stop stop-color="#C3C3C3"/><stop offset="1" stop-color="#595959"/></linearGradient></defs>' +
+          '<path fill-rule="evenodd" clip-rule="evenodd" fill="url(#g)" ' +
+          'd="M32 2 L62 32 L32 62 L2 32 Z M32 20 L44 32 L32 44 L20 32 Z"/></svg>';
+        var greyHref = 'data:image/svg+xml,' + encodeURIComponent(greySvg);
+        function setFavicon(href) {
+          var old = document.querySelector('link#favicon');
+          var link = document.createElement('link');
+          link.id = 'favicon';
+          link.rel = 'icon';
+          link.type = 'image/svg+xml';
+          link.href = href;
+          if (old) old.replaceWith(link);
+          else document.head.appendChild(link);
+        }
+        function update() {
+          setFavicon(navigator.onLine ? colorHref : greyHref);
+        }
+        window.addEventListener('online', update);
+        window.addEventListener('offline', update);
+        update();
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

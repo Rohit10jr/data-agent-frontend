@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { verifyEmail, resendVerification } from '@/lib/auth-client';
 import { ApiError } from '@/lib/api';
-import NaoLogo from '@/components/icons/nao-logo.svg';
+import QueryNLogo from '@/components/icons/queryn-logo-plain.svg';
 
 type VerifyState = 'verifying' | 'success' | 'error';
 
@@ -66,7 +66,7 @@ function VerifyEmail() {
 	return (
 		<div className='mx-auto w-full max-w-md p-8 my-auto'>
 			<div className='flex flex-row items-end mb-8'>
-				<NaoLogo className='h-8 w-auto' />
+				<QueryNLogo className='h-8 w-auto' />
 				<span className='text-muted-foreground text-sm mx-4 border-l-1 border-border h-4'></span>
 				<h1 className='text-md font-semibold uppercase leading-none'>
 					{state === 'verifying' && 'Verifying'}
