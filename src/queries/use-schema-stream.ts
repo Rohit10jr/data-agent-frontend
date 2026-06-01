@@ -122,6 +122,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				slug: s,
 				name: 'New Project',
 				description: null,
+				isStarred: false,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -328,6 +329,7 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 										schema_table: liveSchemaTableRef.current,
 										sql_table: liveSqlTableRef.current,
 										sql_seed_data: liveSqlSeedRef.current,
+										sql_edited_manually: false,
 										created_at: new Date().toISOString(),
 										updated_at: new Date().toISOString(),
 										messages: seededMessages,

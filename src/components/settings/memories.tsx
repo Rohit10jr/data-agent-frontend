@@ -27,8 +27,8 @@ export function SettingsMemories() {
 	const [editContent, setEditContent] = useState('');
 	const [deleteTarget, setDeleteTarget] = useState<Memory | null>(null);
 
-	const errorMessage = (e: unknown): string | undefined =>
-		e instanceof Error ? e.message : undefined;
+	const errorMessage = (e: unknown): string =>
+		e instanceof Error ? e.message : 'Something went wrong.';
 
 	const handleAdd = async () => {
 		const content = draft.trim();

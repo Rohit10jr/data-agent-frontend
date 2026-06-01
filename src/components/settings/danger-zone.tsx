@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SettingsCard } from '@/components/ui/settings-card';
+import { Spinner } from '@/components/ui/spinner';
 import { api, ApiError } from '@/lib/api';
 import { CHAT_LIST_QUERY_KEY, type ListChatResponse } from '@/queries/use-chat-list-query';
 import {
@@ -80,13 +81,14 @@ export function DangerZone() {
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
 							variant='destructive'
-							isLoading={deleteAllNonStarred.isPending}
+							disabled={deleteAllNonStarred.isPending}
 							onClick={(e) => {
 								e.preventDefault();
 								deleteAllNonStarred.mutate();
 							}}
 						>
-							Delete all
+							{deleteAllNonStarred.isPending && <Spinner />}
+							{deleteAllNonStarred.isPending ? 'Deleting...' : 'Delete all'}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

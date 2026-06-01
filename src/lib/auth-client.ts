@@ -13,6 +13,10 @@ export interface SessionUser {
 	name: string;
 	firstName: string;
 	lastName: string;
+	// Server-driven flag for first-login forced password reset.
+	// Django doesn't emit this yet; the field stays optional so the type checker
+	// is happy and `useNavigateToResetPasswordPageIfNeeded` simply sees `undefined`.
+	requiresPasswordReset?: boolean;
 }
 
 interface DjangoLoginResponse {
@@ -174,13 +178,32 @@ export const signOut = async (options?: SignOutOptions): Promise<void> => {
 };
 
 // ── password reset (stubs — wire up later) ────────────────────────────
-export const requestPasswordReset = async (values: { email: string }) => {
-	return api.post<{ message: string }>('/password/reset/', { email: values.email });
+// Returns better-auth's `{ data?, error? }` envelope so the forgot-password
+// and reset-password routes can destructure `{ error }` directly.
+interface AuthResult<T> {
+	data?: T;
+	error?: { message: string };
+}
+
+export const requestPasswordReset = async (
+	values: { email: string; redirectTo?: string },
+): Promise<AuthResult<{ message: string }>> => {
+	try {
+		const data = await api.post<{ message: string }>('/password/reset/', {
+			email: values.email,
+			redirect_to: values.redirectTo,
+		});
+		return { data };
+	} catch (err) {
+		return { error: { message: extractErrorMessage(err) } };
+	}
 };
 
-export const resetPassword = async (_values: { newPassword: string; token: string }) => {
+export const resetPassword = async (
+	_values: { newPassword: string; token: string },
+): Promise<AuthResult<{ message: string }>> => {
 	console.warn('[auth] resetPassword requires uid+token — wire up the /reset-password page later');
-	return { message: 'Not implemented' };
+	return { data: { message: 'Not implemented' } };
 };
 
 // ── useSession ────────────────────────────────────────────────────────

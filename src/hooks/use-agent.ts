@@ -99,7 +99,8 @@ export const useAgent = ({ disableNavigation = false }: { disableNavigation?: bo
 
 			if (dataPart.type === 'data-chatTitleUpdate') {
 				const { title } = dataPart.data;
-				setChat({ chatId: agentId }, (prev) => (prev ? { ...prev, title } : prev));
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				setChat({ chatId: agentId }, (prev: any) => (prev ? { ...prev, title } : prev));
 				setChatList((old) => ({
 					chats: (old?.chats ?? []).map((c) => (c.id === agentId ? { ...c, title } : c)),
 				}));
@@ -197,7 +198,8 @@ export const useAgent = ({ disableNavigation = false }: { disableNavigation?: bo
 			const nextMessages = messages.slice(0, -1);
 			setMessages(nextMessages);
 			if (chatIdRef.current) {
-				setChat({ chatId: chatIdRef.current }, (prev) => (prev ? { ...prev, messages: nextMessages } : prev));
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				setChat({ chatId: chatIdRef.current }, (prev: any) => (prev ? { ...prev, messages: nextMessages } : prev));
 			}
 		}
 	}, [error]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -317,7 +319,8 @@ export const useSyncMessages = ({ agent }: { agent: AgentHelpers }) => {
 			return;
 		}
 		const base = chatDataRef.current;
-		setChat({ chatId }, (prev) => {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		setChat({ chatId }, (prev: any) => {
 			const src = prev ?? base;
 			return src ? { ...src, messages: agent.messages } : prev;
 		});
@@ -327,7 +330,8 @@ export const useSyncMessages = ({ agent }: { agent: AgentHelpers }) => {
 	useEffect(() => {
 		if (wasRunningRef.current && !agent.isRunning) {
 			const base = chatDataRef.current;
-			setChat({ chatId }, (prev) => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			setChat({ chatId }, (prev: any) => {
 				const src = prev ?? base;
 				return src ? { ...src, messages: agentMessagesRef.current } : prev;
 			});

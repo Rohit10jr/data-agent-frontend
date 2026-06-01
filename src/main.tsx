@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { UseQueryOptions, UseMutationOptions } from '@tanstack/react-query';
 import { PostHogProvider } from './contexts/posthog.provider';
 import { ThemeProvider } from './contexts/theme.provider';
 import { routeTree } from './routeTree.gen';
@@ -45,13 +46,15 @@ export const queryClient = new QueryClient({
 // returns safe defaults: queries resolve to `null` instantly, mutations throw.
 // Replace specific procedures with real Django calls one at a time.
 
-type AnyFn = (...args: unknown[]) => unknown;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any;
 
 function makeStub(path: string[]): unknown {
 	const target: Record<string, AnyFn> = {
 		queryOptions: (..._args: unknown[]) => ({
 			queryKey: ['__stub__', ...path, ..._args],
-			queryFn: async () => null,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			queryFn: async (): Promise<any> => null,
 		}),
 		mutationOptions: (opts: Record<string, unknown> = {}) => ({
 			mutationFn: async () => {
@@ -62,24 +65,42 @@ function makeStub(path: string[]): unknown {
 		queryKey: (..._args: unknown[]) => ['__stub__', ...path, ..._args],
 		infiniteQueryOptions: (..._args: unknown[]) => ({
 			queryKey: ['__stub__', ...path, ..._args],
-			queryFn: async () => ({ items: [], nextCursor: null }),
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			queryFn: async (): Promise<any> => ({ items: [], nextCursor: null }),
 			initialPageParam: null,
 			getNextPageParam: () => null,
 		}),
 	};
 
 	return new Proxy(target, {
-		get(t, prop: string | symbol) {
-			if (typeof prop !== 'string') return (t as Record<string | symbol, unknown>)[prop as string];
+		get(t, prop) {
+			if (typeof prop !== 'string') {
+				return (t as Record<string, unknown>)[prop as unknown as string];
+			}
 			if (prop in t) return t[prop];
 			return makeStub([...path, prop]);
 		},
 	});
 }
 
+// Recursive proxy type: every namespace access yields the same shape, so
+// `trpc.namespace.procedure.queryOptions()` stays callable at any depth.
+// We use `any` for TData so consumers don't have to cast `data?.x` at every site —
+// this is a stub; real type safety returns when each procedure gets a Django call.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface TrpcStubProcedure {
+	queryOptions: (input?: unknown, opts?: unknown) => UseQueryOptions<any, Error, any>;
+	// Opts is typed as `Partial<UseMutationOptions>` so caller callbacks like
+	// `onError: (err) => ...` get their parameter inferred as `Error`.
+	mutationOptions: (opts?: Partial<UseMutationOptions<any, Error, any>>) => UseMutationOptions<any, Error, any>;
+	queryKey: (input?: unknown) => readonly unknown[];
+	infiniteQueryOptions: (input?: unknown, opts?: unknown) => UseQueryOptions<any, Error, any>;
+}
+type TrpcStubProxy = TrpcStubProcedure & { [key: string]: TrpcStubProxy };
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** Stub tRPC proxy. No HTTP requests fire. Replace per-procedure as Django endpoints come online. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const trpc: any = makeStub([]);
+export const trpc = makeStub([]) as unknown as TrpcStubProxy;
 
 /** Stub trpcClient — kept for any direct imports; throws on any call. */
 export const trpcClient = new Proxy(
