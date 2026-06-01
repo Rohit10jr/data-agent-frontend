@@ -50,9 +50,42 @@ function ChatDetailPage() {
 
 	// Auto-scroll to bottom on new content.
 	const bottomRef = useRef<HTMLDivElement>(null);
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+	const didInitialScrollRef = useRef(false);
+	// Tracks whether the user is at (or very near) the bottom of the scroll
+	// container. The auto-scroll respects this so manual scrolling up mid-
+	// stream doesn't get yanked back down by incoming tokens.
+	const isNearBottomRef = useRef(true);
+
 	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-	}, [messages]);
+		const container = scrollContainerRef.current;
+		if (!container) return;
+		const NEAR_BOTTOM_PX = 100;
+		const handleScroll = () => {
+			const { scrollTop, scrollHeight, clientHeight } = container;
+			isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < NEAR_BOTTOM_PX;
+		};
+		container.addEventListener('scroll', handleScroll, { passive: true });
+		return () => container.removeEventListener('scroll', handleScroll);
+	}, []);
+
+	// Auto-scroll policy:
+	//   1. Initial render with content → jump to bottom once (instant).
+	//   2. While streaming AND user is still near the bottom → follow with a
+	//      smooth scroll.
+	//   3. After streaming ends → do nothing, so the post-stream cascade
+	//      doesn't fire three back-to-back smooth scrolls (the visible jerk).
+	useEffect(() => {
+		if (!didInitialScrollRef.current && messages.length > 0) {
+			bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+			didInitialScrollRef.current = true;
+			isNearBottomRef.current = true;
+			return;
+		}
+		if (isStreaming && isNearBottomRef.current) {
+			bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+		}
+	}, [messages, isStreaming]);
 
 	if (isLoading) {
 		return (
@@ -74,7 +107,7 @@ function ChatDetailPage() {
 
 	return (
 		<div className='flex flex-col flex-1 overflow-hidden bg-panel'>
-			<div className='flex-1 overflow-y-auto'>
+			<div ref={scrollContainerRef} className='flex-1 overflow-y-auto'>
 				<div className='max-w-3xl mx-auto p-6 space-y-6'>
 					{messages.length === 0 ? (
 						<p className='text-sm text-muted-foreground text-center pt-12'>

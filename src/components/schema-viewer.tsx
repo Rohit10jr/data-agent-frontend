@@ -185,6 +185,13 @@ function SchemaChatPane({
 	hasSlug: boolean;
 }) {
 	const bottomRef = useRef<HTMLDivElement>(null);
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+	const didInitialScrollRef = useRef(false);
+	// Tracks whether the user is at (or very near) the bottom of the scroll
+	// container. The auto-scroll respects this so that if the user manually
+	// scrolls up mid-stream to re-read earlier turns, new tokens don't yank
+	// them back down.
+	const isNearBottomRef = useRef(true);
 
 	// Cache the last submitted message so the error banner's Retry button
 	// can resend the same prompt without the user retyping.
@@ -195,9 +202,39 @@ function SchemaChatPane({
 		}
 	};
 
+	// Watch the scroll container so the auto-scroll effect knows whether the
+	// user has scrolled away from the bottom.
 	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [turns, stream.currentNode]);
+		const container = scrollContainerRef.current;
+		if (!container) return;
+		const NEAR_BOTTOM_PX = 100;
+		const handleScroll = () => {
+			const { scrollTop, scrollHeight, clientHeight } = container;
+			isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < NEAR_BOTTOM_PX;
+		};
+		container.addEventListener('scroll', handleScroll, { passive: true });
+		return () => container.removeEventListener('scroll', handleScroll);
+	}, []);
+
+	// Auto-scroll policy:
+	//   1. Initial render with content → jump to bottom once (instant).
+	//   2. While streaming AND user is still near the bottom → follow with a
+	//      smooth scroll.
+	//   3. After streaming ends → do nothing. The post-stream cascade
+	//      (`isStreaming` flip → query refetch → live-state clear) used to
+	//      fire three back-to-back smooth scrolls that interrupted each
+	//      other's animation; suppressing them removes the visible jerk.
+	useEffect(() => {
+		if (!didInitialScrollRef.current && turns.length > 0) {
+			bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+			didInitialScrollRef.current = true;
+			isNearBottomRef.current = true;
+			return;
+		}
+		if (stream.isStreaming && isNearBottomRef.current) {
+			bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+		}
+	}, [turns, stream.isStreaming, stream.currentNode]);
 
 	// Once the assistant starts producing text it lands in `turns`; before that
 	// (decision / schema / sql nodes running) show the node label as progress.
@@ -205,7 +242,10 @@ function SchemaChatPane({
 
 	return (
 		<div className='flex flex-col h-full min-h-0 min-w-0'>
-			<div className='flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4'>
+			<div
+				ref={scrollContainerRef}
+				className='flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4'
+			>
 				{turns.length === 0 && !stream.isStreaming && (
 					<div className='text-sm text-muted-foreground space-y-2 mt-6'>
 						<p className='font-medium text-foreground'>Refine the schema by chat.</p>
