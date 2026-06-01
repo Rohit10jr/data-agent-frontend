@@ -87,6 +87,10 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
+# ── Project-specific ───────────────────────────────────────────────
+# Stash for retired/unused icon assets — not shipped
+src/components/icons/unused/
+
 # ── Misc ───────────────────────────────────────────────────────────
 .cache/
 *.pid
