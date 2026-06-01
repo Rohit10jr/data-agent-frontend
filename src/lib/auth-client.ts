@@ -55,10 +55,19 @@ const extractErrorMessage = (err: unknown): string => {
 		if (body?.detail) return String(body.detail);
 		if (body?.message) return String(body.message);
 		if (body?.errors) {
-			// DRF-style field errors: { errors: { email: ["already exists"] } }
+			// Wrapped DRF errors: { errors: { email: ["already exists"] } }
 			const errors = body.errors as Record<string, string[]>;
 			const first = Object.values(errors)[0];
 			if (Array.isArray(first) && first.length) return first[0];
+		}
+		// Default DRF shape — field errors at the top level:
+		// { old_password: ["Old password is incorrect."] }
+		if (body) {
+			for (const value of Object.values(body)) {
+				if (Array.isArray(value) && value.length && typeof value[0] === 'string') {
+					return value[0];
+				}
+			}
 		}
 		return err.message;
 	}
@@ -192,6 +201,27 @@ export const requestPasswordReset = async (
 		const data = await api.post<{ message: string }>('/password/reset/', {
 			email: values.email,
 			redirect_to: values.redirectTo,
+		});
+		return { data };
+	} catch (err) {
+		return { error: { message: extractErrorMessage(err) } };
+	}
+};
+
+/**
+ * Authenticated user-initiated password change. Requires the current password
+ * as a confirmation step. Caller stays signed in on success.
+ */
+export const changePassword = async (values: {
+	oldPassword: string;
+	newPassword: string;
+	confirmPassword: string;
+}): Promise<AuthResult<{ message: string }>> => {
+	try {
+		const data = await api.post<{ message: string }>('/password/change/', {
+			old_password: values.oldPassword,
+			new_password1: values.newPassword,
+			new_password2: values.confirmPassword,
 		});
 		return { data };
 	} catch (err) {

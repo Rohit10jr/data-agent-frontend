@@ -12,7 +12,9 @@ import { UserProfileCard } from "@/components/settings/profile-card";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { soundNotificationStorage } from "@/hooks/use-stream-end-sound";
 import { ThemeSelector } from "@/components/settings/theme-selector";
+import { ChangePasswordDialog } from "@/components/settings/change-password-dialog";
 import { DangerZone } from "@/components/settings/danger-zone";
+import { Button } from "@/components/ui/button";
 import {
   SettingsCard,
   SettingsPageWrapper,
@@ -41,6 +43,7 @@ function GeneralPage() {
   const navigation = useAuthRoute();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   const editMember: TeamMember | null =
     user && editOpen
@@ -113,6 +116,27 @@ function GeneralPage() {
           control={<ThemeSelector />}
         />
       </SettingsCard>
+
+      <SettingsCard title="Security" divide>
+        <SettingsControlRow
+          label="Password"
+          description="Change the password used to sign in to your account."
+          control={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setChangePasswordOpen(true)}
+            >
+              Change password
+            </Button>
+          }
+        />
+      </SettingsCard>
+
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onOpenChange={setChangePasswordOpen}
+      />
 
       <DangerZone />
 
