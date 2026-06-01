@@ -33,7 +33,7 @@ export function AuthForm({
 	return (
 		<div className='mx-auto w-full max-w-md p-8 my-auto'>
 			<div className='flex flex-row items-center mb-8'>
-				<QueryNLogo className='w-20 h-auto' />
+				<QueryNLogo className='w-24 h-auto' />
 				<span className='text-muted-foreground text-sm mx-3 border-l border-border h-4'></span>
 				<h1 className='text-md font-semibold uppercase leading-none'>{title}</h1>
 			</div>
