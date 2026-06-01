@@ -199,11 +199,27 @@ export const requestPasswordReset = async (
 	}
 };
 
-export const resetPassword = async (
-	_values: { newPassword: string; token: string },
-): Promise<AuthResult<{ message: string }>> => {
-	console.warn('[auth] resetPassword requires uid+token — wire up the /reset-password page later');
-	return { data: { message: 'Not implemented' } };
+export const resetPassword = async (values: {
+	uid: string;
+	token: string;
+	newPassword: string;
+	confirmPassword: string;
+}): Promise<AuthResult<{ message: string }>> => {
+	try {
+		const data = await api.post<{ message: string }>('/password/reset/confirm/', {
+			uid: values.uid,
+			token: values.token,
+			password1: values.newPassword,
+			password2: values.confirmPassword,
+		});
+		// Defensive: if the user happened to be signed in on this device, drop
+		// their tokens so the post-reset success screen reflects a clean state
+		// (no auto-resume of the old session).
+		tokens.clear();
+		return { data };
+	} catch (err) {
+		return { error: { message: extractErrorMessage(err) } };
+	}
 };
 
 // ── useSession ────────────────────────────────────────────────────────
