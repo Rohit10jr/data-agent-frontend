@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react';
 import { Bot, User } from 'lucide-react';
 
+import { MarkdownText } from './markdown-text';
 import { cn } from '@/lib/utils';
 
 export type ChatRole = 'user' | 'assistant';
@@ -30,17 +31,22 @@ export function MessageRow({ role, children }: { role: ChatRole; children: React
 	);
 }
 
-/** Plain-text message bubble (no markdown — matches the SQL chat rendering). */
+/**
+ * Message bubble. User text renders verbatim (whitespace preserved). Assistant
+ * text is parsed as markdown so bold/lists/code/tables/links render properly.
+ */
 export function TextBubble({ role, text }: { role: ChatRole; text: string }) {
 	const isUser = role === 'user';
+	if (isUser) {
+		return (
+			<div className='rounded-lg px-4 py-2 text-sm whitespace-pre-wrap bg-primary text-primary-foreground max-w-2xl'>
+				{text}
+			</div>
+		);
+	}
 	return (
-		<div
-			className={cn(
-				'rounded-lg px-4 py-2 text-sm whitespace-pre-wrap',
-				isUser ? 'bg-primary text-primary-foreground max-w-2xl' : 'bg-sidebar-accent',
-			)}
-		>
-			{text}
+		<div className='rounded-lg px-4 py-2 bg-sidebar-accent'>
+			<MarkdownText text={text} />
 		</div>
 	);
 }
