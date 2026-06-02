@@ -8,6 +8,12 @@ import { ChatComposer } from '@/components/chat-composer';
 import { ChartRenderer } from '@/components/chart-renderer';
 import { AgentErrorBanner } from '@/components/chat/agent-error-banner';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
+import {
+	Conversation,
+	ConversationContent,
+	ConversationScrollButton,
+} from '@/components/ui/conversation';
+import { useScrollToBottomOnNewUserMessage } from '@/hooks/use-scroll-to-bottom-on-new-user-message';
 import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
 
@@ -48,12 +54,6 @@ function ChatDetailPage() {
 		chatActivityStore.setUnread(chatId, false);
 	}, [chatId]);
 
-	// Auto-scroll to bottom on new content.
-	const bottomRef = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-	}, [messages]);
-
 	if (isLoading) {
 		return (
 			<div className='flex-1 flex items-center justify-center bg-panel'>
@@ -74,21 +74,17 @@ function ChatDetailPage() {
 
 	return (
 		<div className='flex flex-col flex-1 overflow-hidden bg-panel'>
-			<div className='flex-1 overflow-y-auto'>
-				<div className='max-w-3xl mx-auto p-6 space-y-6'>
-					{messages.length === 0 ? (
-						<p className='text-sm text-muted-foreground text-center pt-12'>
-							No messages yet. Send one to start the conversation.
-						</p>
-					) : (
-						messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
-					)}
-					{streamError && (
-						<AgentErrorBanner error={streamError} onRetry={handleRetry} />
-					)}
-					<div ref={bottomRef} />
-				</div>
-			</div>
+			<Conversation>
+				<ConversationContent className='max-w-3xl mx-auto w-full p-6 gap-6'>
+					<SqlChatScroll
+						messages={messages}
+						isStreaming={isStreaming}
+						streamError={streamError}
+						onRetry={handleRetry}
+					/>
+				</ConversationContent>
+				<ConversationScrollButton />
+			</Conversation>
 
 			<ChatComposer
 				onSend={handleSend}
@@ -96,6 +92,41 @@ function ChatDetailPage() {
 				isStreaming={isStreaming}
 			/>
 		</div>
+	);
+}
+
+/**
+ * Inner scroll content. Must live INSIDE `<Conversation>` so the snap-on-send
+ * hook can access the StickToBottom context.
+ */
+function SqlChatScroll({
+	messages,
+	isStreaming,
+	streamError,
+	onRetry,
+}: {
+	messages: HistoryMessage[];
+	isStreaming: boolean;
+	streamError: ReturnType<typeof useChatStream>['streamError'];
+	onRetry: () => void;
+}) {
+	useScrollToBottomOnNewUserMessage(messages, isStreaming);
+
+	if (messages.length === 0) {
+		return (
+			<p className='text-sm text-muted-foreground text-center pt-12'>
+				No messages yet. Send one to start the conversation.
+			</p>
+		);
+	}
+
+	return (
+		<>
+			{messages.map((msg) => (
+				<MessageBubble key={msg.id} message={msg} />
+			))}
+			{streamError && <AgentErrorBanner error={streamError} onRetry={onRetry} />}
+		</>
 	);
 }
 

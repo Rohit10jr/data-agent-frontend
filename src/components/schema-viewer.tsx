@@ -45,6 +45,12 @@ import {
 import { ChatComposer } from '@/components/chat-composer';
 import { AgentErrorBanner } from '@/components/chat/agent-error-banner';
 import { MessageRow, TextBubble, ThinkingIndicator } from '@/components/chat/chat-primitives';
+import {
+	Conversation,
+	ConversationContent,
+	ConversationScrollButton,
+} from '@/components/ui/conversation';
+import { useScrollToBottomOnNewUserMessage } from '@/hooks/use-scroll-to-bottom-on-new-user-message';
 import { chatActivityStore } from '@/stores/chat-activity';
 import { cn } from '@/lib/utils';
 
@@ -184,8 +190,6 @@ function SchemaChatPane({
 	stream: ReturnType<typeof useSchemaStream>;
 	hasSlug: boolean;
 }) {
-	const bottomRef = useRef<HTMLDivElement>(null);
-
 	// Cache the last submitted message so the error banner's Retry button
 	// can resend the same prompt without the user retyping.
 	const lastSentRef = useRef<{ text: string; model: string | undefined } | null>(null);
@@ -195,49 +199,18 @@ function SchemaChatPane({
 		}
 	};
 
-	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [turns, stream.currentNode]);
-
-	// Once the assistant starts producing text it lands in `turns`; before that
-	// (decision / schema / sql nodes running) show the node label as progress.
-	const showProgress = stream.isStreaming && !stream.liveAssistant;
-
 	return (
 		<div className='flex flex-col h-full min-h-0 min-w-0'>
-			<div className='flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4'>
-				{turns.length === 0 && !stream.isStreaming && (
-					<div className='text-sm text-muted-foreground space-y-2 mt-6'>
-						<p className='font-medium text-foreground'>Refine the schema by chat.</p>
-						<ul className='list-disc pl-5 space-y-1 text-xs'>
-							<li>Add or remove tables</li>
-							<li>Change column types or constraints</li>
-							<li>Introduce relationships between tables</li>
-						</ul>
-					</div>
-				)}
-
-				{turns.map((t) => (
-					<MessageRow key={t.id} role={t.role}>
-						<TextBubble role={t.role} text={t.text || (t.role === 'assistant' ? '…' : '')} />
-					</MessageRow>
-				))}
-
-				{showProgress && (
-					<MessageRow role='assistant'>
-						<ThinkingIndicator label={stream.currentNode ?? 'Thinking'} />
-					</MessageRow>
-				)}
-
-				{stream.streamError && (
-					<AgentErrorBanner
-						error={stream.streamError}
-						onRetry={handleRetry}
+			<Conversation>
+				<ConversationContent className='p-4 gap-4'>
+					<SchemaChatScroll
+						turns={turns}
+						stream={stream}
+						handleRetry={handleRetry}
 					/>
-				)}
-
-				<div ref={bottomRef} />
-			</div>
+				</ConversationContent>
+				<ConversationScrollButton />
+			</Conversation>
 
 			<ChatComposer
 				showAgentPicker={false}
@@ -255,6 +228,58 @@ function SchemaChatPane({
 				}
 			/>
 		</div>
+	);
+}
+
+/**
+ * Renders the scroll content. Must live INSIDE `<Conversation>` so the
+ * "snap on new user message" hook can read the StickToBottom context.
+ */
+function SchemaChatScroll({
+	turns,
+	stream,
+	handleRetry,
+}: {
+	turns: ReturnType<typeof mergeHistoryWithLive>;
+	stream: ReturnType<typeof useSchemaStream>;
+	handleRetry: () => void;
+}) {
+	useScrollToBottomOnNewUserMessage(turns, stream.isStreaming);
+
+	// Once the assistant starts producing text it lands in `turns`; before
+	// that (decision / schema / sql nodes running) show the node label as
+	// progress.
+	const showProgress = stream.isStreaming && !stream.liveAssistant;
+
+	return (
+		<>
+			{turns.length === 0 && !stream.isStreaming && (
+				<div className='text-sm text-muted-foreground space-y-2 mt-6'>
+					<p className='font-medium text-foreground'>Refine the schema by chat.</p>
+					<ul className='list-disc pl-5 space-y-1 text-xs'>
+						<li>Add or remove tables</li>
+						<li>Change column types or constraints</li>
+						<li>Introduce relationships between tables</li>
+					</ul>
+				</div>
+			)}
+
+			{turns.map((t) => (
+				<MessageRow key={t.id} role={t.role}>
+					<TextBubble role={t.role} text={t.text || (t.role === 'assistant' ? '…' : '')} />
+				</MessageRow>
+			))}
+
+			{showProgress && (
+				<MessageRow role='assistant'>
+					<ThinkingIndicator label={stream.currentNode ?? 'Thinking'} />
+				</MessageRow>
+			)}
+
+			{stream.streamError && (
+				<AgentErrorBanner error={stream.streamError} onRetry={handleRetry} />
+			)}
+		</>
 	);
 }
 

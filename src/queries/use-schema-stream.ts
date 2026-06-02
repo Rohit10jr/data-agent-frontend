@@ -278,8 +278,13 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 										schema_table: snapshot.liveSchemaTable ?? prev.schema_table,
 										sql_table: snapshot.liveSqlTable ?? prev.sql_table,
 										sql_seed_data: snapshot.liveSqlSeed ?? prev.sql_seed_data,
+										// Append the new turn to existing history rather than
+										// replacing — every send was wiping prior turns out of
+										// the cache after we removed the post-stream refetch.
 										messages:
-											seededMessages.length > 0 ? seededMessages : prev.messages,
+											seededMessages.length > 0
+												? [...prev.messages, ...seededMessages]
+												: prev.messages,
 									}
 								: {
 										id: -1,
@@ -296,15 +301,18 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 									},
 					);
 
-					// Force a refetch (not just invalidate) so the cache is hot for
-					// the next visit, even though no component is currently
-					// subscribed to this query on the unmounted home page.
-					try {
-						await qc.refetchQueries({ queryKey: schemaProjectQueryKey(finalSlug) });
-						await qc.invalidateQueries({ queryKey: SCHEMA_LIST_QUERY_KEY });
-					} catch {
-						// ignore — the seeded cache keeps the page populated
-					}
+					// DON'T refetch the project detail here — that would replace
+					// the just-seeded cache with the backend's normalized version
+					// (real DB ids, whitespace tweaks). The swap forces React to
+					// unmount and remount the assistant `MessageRow`, the markdown
+					// re-parses, layout shifts a few pixels → visible jerk at
+					// stream end. The fresh-from-server copy arrives naturally on
+					// the next visit via React Query's stale-on-refetch behavior.
+					//
+					// We still invalidate the project LIST so the sidebar reflects
+					// any new project / title change; the list shape is small and
+					// its re-render doesn't affect the chat scroll position.
+					qc.invalidateQueries({ queryKey: SCHEMA_LIST_QUERY_KEY });
 				}
 
 				// Live turn data is now reflected in the persisted project query —
