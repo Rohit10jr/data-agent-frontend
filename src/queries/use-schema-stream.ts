@@ -278,8 +278,13 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 										schema_table: snapshot.liveSchemaTable ?? prev.schema_table,
 										sql_table: snapshot.liveSqlTable ?? prev.sql_table,
 										sql_seed_data: snapshot.liveSqlSeed ?? prev.sql_seed_data,
+										// Append the new turn to existing history rather than
+										// replacing — every send was wiping prior turns out of
+										// the cache after we removed the post-stream refetch.
 										messages:
-											seededMessages.length > 0 ? seededMessages : prev.messages,
+											seededMessages.length > 0
+												? [...prev.messages, ...seededMessages]
+												: prev.messages,
 									}
 								: {
 										id: -1,
