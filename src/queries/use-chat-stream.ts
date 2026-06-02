@@ -16,6 +16,7 @@ import {
 import {
 	chatHistoryQueryKey,
 	useChatHistoryQuery,
+	type ChatHistoryResponse,
 	type HistoryMessage,
 	type HistoryPart,
 } from '@/queries/use-chat-history-query';
@@ -38,6 +39,16 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 	// run_id captured from the `run_started` SSE event — used by abort() to
 	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
 	const runIdRef = useRef<string | null>(null);
+	// Mirrors of live state. The sendMessage closure runs async, so reading
+	// `liveUser` / `liveAssistant` directly in the `finally` block would see
+	// the values captured when sendMessage was called (always null). Refs let
+	// us read what the SSE handler actually accumulated.
+	const liveUserRef = useRef<HistoryMessage | null>(null);
+	const liveAssistantRef = useRef<HistoryMessage | null>(null);
+	useEffect(() => {
+		liveUserRef.current = liveUser;
+		liveAssistantRef.current = liveAssistant;
+	});
 
 	const messages = useMemo<HistoryMessage[]>(() => {
 		const base = history.data?.messages ?? [];
@@ -229,14 +240,28 @@ export function useChatStream({ threadId }: UseChatStreamOptions) {
 					chatActivityStore.setUnread(threadId, true);
 				}
 
-				// Refetch the canonical history, then clear live state. This avoids
-				// a flicker where the live message disappears before the new history
-				// arrives.
-				try {
-					await qc.invalidateQueries({ queryKey: chatHistoryQueryKey(threadId) });
-					await qc.refetchQueries({ queryKey: chatHistoryQueryKey(threadId) });
-				} catch {
-					// ignore — UI keeps live state if refetch fails
+				// Promote the live turn into the canonical history cache, then
+				// clear live state in the same render-batch window. We deliberately
+				// DO NOT refetch from the backend here — that would replace the
+				// just-seeded cache with the server's normalized version (real DB
+				// ids, whitespace tweaks), which forces React to unmount and
+				// remount the assistant message. The remount re-parses the
+				// markdown and shifts layout by a few pixels → visible jerk at
+				// stream end. The fresh-from-server copy will arrive naturally on
+				// the next visit via React Query's stale-on-refetch behavior.
+				const seedUser = liveUserRef.current;
+				const seedAssistant = liveAssistantRef.current;
+				if (seedUser || seedAssistant) {
+					qc.setQueryData<ChatHistoryResponse>(
+						chatHistoryQueryKey(threadId),
+						(prev) => {
+							const base = prev ?? { thread_id: threadId, messages: [] };
+							const additions: HistoryMessage[] = [];
+							if (seedUser) additions.push(seedUser);
+							if (seedAssistant) additions.push(seedAssistant);
+							return { ...base, messages: [...base.messages, ...additions] };
+						},
+					);
 				}
 				setLiveUser(null);
 				setLiveAssistant(null);
