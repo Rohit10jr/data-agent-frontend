@@ -36,8 +36,11 @@
 		"radix-ui": "^1.4.3",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
+		"react-markdown": "^10.1.0",
 		"react-resizable-panels": "^2",
 		"recharts": "2.15.4",
+		"remark-breaks": "^4.0.0",
+		"remark-gfm": "^4.0.1",
 		"sql-formatter": "^15.7.2",
 		"tailwind-merge": "^3.4.0",
 		"tailwindcss": "^4.0.6"

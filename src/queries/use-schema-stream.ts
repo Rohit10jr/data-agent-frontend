@@ -1,10 +1,20 @@
 // Streaming hook for the schema agent. Handles both "new project" (no slug)
-// and "continue project" (slug present) flows. Maintains live state for the
-// current turn — running node label, in-progress assistant text,
-// latest-known schema/sql/seed — and merges them with the persisted project
-// data on completion.
+// and "continue project" (slug present) flows.
+//
+// Display state (live user/assistant text, current node label, streamed
+// artifacts, error) lives in the global `schemaStreamStore` rather than this
+// hook's local React state. This is critical for the new-project flow: the
+// home page mounts this hook, but the first `node_start` event triggers
+// `commitNavigation()` which unmounts the home page and mounts schema-viewer.
+// With local state, every subsequent SSE event (node labels, errors, tokens)
+// would update the dying home-page hook and never reach the viewer. With the
+// store, both hook instances subscribe to the same external state and the
+// viewer picks up where the home page left off.
+//
+// Control state (abort controller, run id, navigated flag) deliberately stays
+// in per-hook refs — they're tied to the call site that initiated the stream.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
@@ -13,7 +23,6 @@ import {
 	cancelRun,
 	ConcurrentRunError,
 	type SchemaAgentEvent,
-	type AgentErrorPayload,
 } from '@/lib/django-stream';
 import {
 	SCHEMA_LIST_QUERY_KEY,
@@ -23,88 +32,36 @@ import {
 	schemaProjectQueryKey,
 } from '@/queries/use-schema-list-query';
 import { chatActivityStore } from '@/stores/chat-activity';
+import { schemaStreamStore } from '@/stores/schema-stream-store';
+import type { LiveTurn, SchemaStreamState } from '@/stores/schema-stream-store';
 
-export interface LiveTurn {
-	role: 'user' | 'assistant';
-	text: string;
-}
-
-export interface SchemaStreamState {
-	liveUser: LiveTurn | null;
-	liveAssistant: LiveTurn | null;
-	currentNode: string | null;       // label of the node currently executing
-	liveSchemaTable: string | null;   // streamed schema JSON (may arrive mid-turn)
-	liveSqlTable: string | null;
-	liveSqlSeed: string | null;
-	isStreaming: boolean;
-	streamError?: AgentErrorPayload;
-}
+// Re-export so existing consumers don't need to update their imports.
+export type { LiveTurn, SchemaStreamState };
 
 interface UseSchemaStreamOptions {
-	slug?: string;   // omit for new project; navigation happens on first content
+	slug?: string; // omit for new project; navigation happens on first content
 }
 
 export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const qc = useQueryClient();
 	const navigate = useNavigate();
 
-	const [liveUser, setLiveUser] = useState<LiveTurn | null>(null);
-	const [liveAssistant, setLiveAssistant] = useState<LiveTurn | null>(null);
-	const [currentNode, setCurrentNode] = useState<string | null>(null);
-	const [liveSchemaTable, setLiveSchemaTable] = useState<string | null>(null);
-	const [liveSqlTable, setLiveSqlTable] = useState<string | null>(null);
-	const [liveSqlSeed, setLiveSqlSeed] = useState<string | null>(null);
-	const [isStreaming, setIsStreaming] = useState(false);
-	const [streamError, setStreamError] = useState<AgentErrorPayload | undefined>();
+	// Subscribe to the singleton store. Both home page and schema-viewer use
+	// this same store, so events that arrive after navigation still surface.
+	const state = useSyncExternalStore(
+		schemaStreamStore.subscribe,
+		schemaStreamStore.getSnapshot,
+		schemaStreamStore.getSnapshot,
+	);
 
+	// Per-call control state. These refs belong to whichever hook instance
+	// initiated `sendMessage()` — they intentionally don't survive the
+	// home-page → schema-viewer transition (the running async function keeps
+	// them alive via its closure even after the host component unmounts).
 	const abortRef = useRef<AbortController | null>(null);
 	const slugRef = useRef<string | undefined>(slug);
 	const hasNavigatedRef = useRef(false);
-	// run_id captured from the `run_started` SSE event — drives abort()'s
-	// POST /api/runs/<run_id>/cancel/ so the backend actually stops generating.
 	const runIdRef = useRef<string | null>(null);
-	// Refs shadow the state above so the `finally` block sees the latest
-	// values even if its closure was created when state was still null
-	// (stale-closure trap with async functions + useCallback).
-	const liveUserRef = useRef<LiveTurn | null>(null);
-	const liveAssistantRef = useRef<LiveTurn | null>(null);
-	const liveSchemaTableRef = useRef<string | null>(null);
-	const liveSqlTableRef = useRef<string | null>(null);
-	const liveSqlSeedRef = useRef<string | null>(null);
-
-	// Mirror state into refs every render so async closures (the `finally`
-	// block below) read the latest values, not the values frozen when the
-	// closure was created.
-	useEffect(() => {
-		liveUserRef.current = liveUser;
-		liveAssistantRef.current = liveAssistant;
-		liveSchemaTableRef.current = liveSchemaTable;
-		liveSqlTableRef.current = liveSqlTable;
-		liveSqlSeedRef.current = liveSqlSeed;
-	});
-
-	const liveState = useMemo<SchemaStreamState>(
-		() => ({
-			liveUser,
-			liveAssistant,
-			currentNode,
-			liveSchemaTable,
-			liveSqlTable,
-			liveSqlSeed,
-			isStreaming,
-			streamError,
-		}),
-		[
-			liveUser,
-			liveAssistant,
-			currentNode,
-			liveSchemaTable,
-			liveSqlTable,
-			liveSqlSeed,
-			isStreaming,
-			streamError,
-		],
-	);
 
 	const commitNavigation = useCallback(() => {
 		if (hasNavigatedRef.current) return;
@@ -155,26 +112,25 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 
 				case 'node_start': {
 					commitNavigation();
-					setCurrentNode(event.label);
+					schemaStreamStore.patch({ currentNode: event.label });
 					break;
 				}
 
 				case 'token': {
 					commitNavigation();
-					setLiveAssistant((prev) => ({
-						role: 'assistant',
-						text: (prev?.text ?? '') + event.text,
-					}));
+					schemaStreamStore.appendAssistantText(event.text);
 					break;
 				}
 
 				case 'result': {
 					commitNavigation();
 					if (event.result_type === 'SCHEMA') {
-						setLiveSchemaTable(event.content.schema_table);
+						schemaStreamStore.patch({ liveSchemaTable: event.content.schema_table });
 					} else if (event.result_type === 'SQL') {
-						setLiveSqlTable(event.content.sql_table || null);
-						setLiveSqlSeed(event.content.sql_seed_data || null);
+						schemaStreamStore.patch({
+							liveSqlTable: event.content.sql_table || null,
+							liveSqlSeed: event.content.sql_seed_data || null,
+						});
 					}
 					break;
 				}
@@ -182,7 +138,9 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				case 'done': {
 					// Final text replaces the streamed assistant text (covers the case
 					// where token streaming missed something).
-					setLiveAssistant({ role: 'assistant', text: event.text });
+					schemaStreamStore.patch({
+						liveAssistant: { role: 'assistant', text: event.text },
+					});
 					break;
 				}
 
@@ -196,13 +154,15 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				}
 
 				case 'error': {
-					setStreamError({
-						code: event.code,
-						message: event.message,
-						retryable: event.retryable,
-						retry_after_seconds: event.retry_after_seconds,
-						run_id: event.run_id,
-						node: event.node,
+					schemaStreamStore.patch({
+						streamError: {
+							code: event.code,
+							message: event.message,
+							retryable: event.retryable,
+							retry_after_seconds: event.retry_after_seconds,
+							run_id: event.run_id,
+							node: event.node,
+						},
 					});
 					break;
 				}
@@ -217,24 +177,25 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	const sendMessage = useCallback(
 		async (text: string, model?: string) => {
 			const trimmed = text.trim();
-			if (!trimmed || isStreaming) return;
+			// Read straight from the store so this callback's identity stays stable
+			// (no useState dep). The hook re-renders via useSyncExternalStore.
+			if (!trimmed || schemaStreamStore.getSnapshot().isStreaming) return;
 
-			setStreamError(undefined);
+			// Wipe any state from a previous stream — including any prior error.
+			schemaStreamStore.reset();
+			schemaStreamStore.patch({
+				isStreaming: true,
+				liveUser: { role: 'user', text: trimmed },
+			});
+
 			hasNavigatedRef.current = !!slug; // already on /schema/<slug> if we have one
 			slugRef.current = slug;
+			runIdRef.current = null;
 
-			setLiveUser({ role: 'user', text: trimmed });
-			setLiveAssistant(null);
-			setCurrentNode(null);
-			setLiveSchemaTable(null);
-			setLiveSqlTable(null);
-			setLiveSqlSeed(null);
-			setIsStreaming(true);
 			// Refine path: slug is already known → light up the sidebar spinner now.
 			// New-project path: handleEvent will flip it on `thread_created` instead.
 			if (slug) chatActivityStore.setRunning(slug, true);
 
-			runIdRef.current = null;
 			const controller = new AbortController();
 			abortRef.current = controller;
 
@@ -248,30 +209,33 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 				});
 			} catch (err) {
 				if (err instanceof ConcurrentRunError) {
-					setStreamError({
-						code: 'BAD_REQUEST',
-						message:
-							'A previous response is still running. Stop it before sending a new message.',
-						retryable: false,
-						retry_after_seconds: null,
-						run_id: err.existingRunId || null,
-						node: null,
+					schemaStreamStore.patch({
+						streamError: {
+							code: 'BAD_REQUEST',
+							message:
+								'A previous response is still running. Stop it before sending a new message.',
+							retryable: false,
+							retry_after_seconds: null,
+							run_id: err.existingRunId || null,
+							node: null,
+						},
 					});
 				} else if ((err as Error).name !== 'AbortError') {
-					setStreamError({
-						code: 'INTERNAL',
-						message: err instanceof Error ? err.message : String(err),
-						retryable: true,
-						retry_after_seconds: null,
-						run_id: null,
-						node: null,
+					schemaStreamStore.patch({
+						streamError: {
+							code: 'INTERNAL',
+							message: err instanceof Error ? err.message : String(err),
+							retryable: true,
+							retry_after_seconds: null,
+							run_id: null,
+							node: null,
+						},
 					});
 				}
 			} finally {
 				abortRef.current = null;
 				runIdRef.current = null;
-				setIsStreaming(false);
-				setCurrentNode(null);
+				schemaStreamStore.patch({ isStreaming: false, currentNode: null });
 
 				// Clear the sidebar spinner (covers both refine + new-project paths).
 				const finalSlug = slugRef.current;
@@ -283,25 +247,25 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 					chatActivityStore.setUnread(finalSlug, true);
 				}
 
-				// Seed the project query cache with whatever live state we have,
-				// so when the user clicks the sidebar dot and lands on
-				// /schema/<slug> they see their question + reply immediately —
-				// even if the backend refetch hasn't returned yet. Uses refs to
-				// avoid the stale-closure trap.
+				// Seed the project query cache with whatever live state we have so
+				// the destination page renders the new turn immediately, even
+				// before the refetch returns. Snapshot is fresh because this runs
+				// after the stream loop finishes writing to the store.
 				if (finalSlug && hasNavigatedRef.current) {
+					const snapshot = schemaStreamStore.getSnapshot();
 					const seededMessages: SchemaHistoryTurn[] = [];
-					if (liveUserRef.current) {
+					if (snapshot.liveUser) {
 						seededMessages.push({
 							id: 0,
 							role: 'user',
-							text: liveUserRef.current.text,
+							text: snapshot.liveUser.text,
 						});
 					}
-					if (liveAssistantRef.current) {
+					if (snapshot.liveAssistant) {
 						seededMessages.push({
 							id: seededMessages.length,
 							role: 'assistant',
-							text: liveAssistantRef.current.text,
+							text: snapshot.liveAssistant.text,
 						});
 					}
 
@@ -311,24 +275,20 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 							prev
 								? {
 										...prev,
-										schema_table:
-											liveSchemaTableRef.current ?? prev.schema_table,
-										sql_table: liveSqlTableRef.current ?? prev.sql_table,
-										sql_seed_data:
-											liveSqlSeedRef.current ?? prev.sql_seed_data,
+										schema_table: snapshot.liveSchemaTable ?? prev.schema_table,
+										sql_table: snapshot.liveSqlTable ?? prev.sql_table,
+										sql_seed_data: snapshot.liveSqlSeed ?? prev.sql_seed_data,
 										messages:
-											seededMessages.length > 0
-												? seededMessages
-												: prev.messages,
+											seededMessages.length > 0 ? seededMessages : prev.messages,
 									}
 								: {
 										id: -1,
 										slug: finalSlug,
 										name: 'New Project',
 										user: -1,
-										schema_table: liveSchemaTableRef.current,
-										sql_table: liveSqlTableRef.current,
-										sql_seed_data: liveSqlSeedRef.current,
+										schema_table: snapshot.liveSchemaTable,
+										sql_table: snapshot.liveSqlTable,
+										sql_seed_data: snapshot.liveSqlSeed,
 										sql_edited_manually: false,
 										created_at: new Date().toISOString(),
 										updated_at: new Date().toISOString(),
@@ -346,14 +306,21 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 						// ignore — the seeded cache keeps the page populated
 					}
 				}
-				setLiveUser(null);
-				setLiveAssistant(null);
-				setLiveSchemaTable(null);
-				setLiveSqlTable(null);
-				setLiveSqlSeed(null);
+
+				// Live turn data is now reflected in the persisted project query —
+				// clear the store so future renders read from the query cache,
+				// not the stale live state. `streamError` is intentionally left
+				// in place; consumers need it to show the retry banner.
+				schemaStreamStore.patch({
+					liveUser: null,
+					liveAssistant: null,
+					liveSchemaTable: null,
+					liveSqlTable: null,
+					liveSqlSeed: null,
+				});
 			}
 		},
-		[slug, isStreaming, handleEvent, qc],
+		[slug, handleEvent, qc],
 	);
 
 	const abort = useCallback(() => {
@@ -375,24 +342,46 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 	}, [slug]);
 
 	return {
-		...liveState,
+		...state,
 		sendMessage,
 		abort,
 	};
 }
 
-/** Helper to merge persisted history with the live in-progress turn for rendering. */
+/**
+ * Helper to merge persisted history with the live in-progress turn for rendering.
+ *
+ * Dedupes the live user/assistant turn against history's tail. The Django
+ * backend persists the user message at the start of the stream, so once the
+ * project query fetches (right after navigation in the new-project flow) the
+ * tail of `historyTurns` already contains it. Pushing the live turn on top
+ * without this guard renders the same message twice. The same guard covers
+ * the assistant turn in case a post-stream refetch lands before the store's
+ * live state is cleared.
+ */
 export function mergeHistoryWithLive(
 	historyTurns: SchemaHistoryTurn[] | undefined,
 	live: SchemaStreamState,
 ): SchemaHistoryTurn[] {
 	const turns: SchemaHistoryTurn[] = [...(historyTurns ?? [])];
+
 	if (live.liveUser) {
-		turns.push({ id: turns.length, role: 'user', text: live.liveUser.text });
+		const tail = turns[turns.length - 1];
+		const alreadyPersisted = tail?.role === 'user' && tail.text === live.liveUser.text;
+		if (!alreadyPersisted) {
+			turns.push({ id: turns.length, role: 'user', text: live.liveUser.text });
+		}
 	}
+
 	if (live.liveAssistant) {
-		turns.push({ id: turns.length, role: 'assistant', text: live.liveAssistant.text });
+		const tail = turns[turns.length - 1];
+		const alreadyPersisted =
+			tail?.role === 'assistant' && tail.text === live.liveAssistant.text;
+		if (!alreadyPersisted) {
+			turns.push({ id: turns.length, role: 'assistant', text: live.liveAssistant.text });
+		}
 	}
+
 	return turns;
 }
 
