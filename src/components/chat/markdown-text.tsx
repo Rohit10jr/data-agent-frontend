@@ -20,7 +20,12 @@ interface MarkdownTextProps {
  */
 export const MarkdownText = memo(function MarkdownText({ text, className }: MarkdownTextProps) {
 	return (
-		<div className={cn('text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0', className)}>
+		<div
+			className={cn(
+				'text-sm leading-relaxed min-w-0 break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+				className,
+			)}
+		>
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm, remarkBreaks]}
 				components={{
@@ -47,7 +52,7 @@ export const MarkdownText = memo(function MarkdownText({ text, className }: Mark
 							);
 						}
 						return (
-							<code className='bg-muted-foreground/15 px-1 py-0.5 rounded text-[0.85em] font-mono'>
+							<code className='bg-muted-foreground/15 px-1 py-0.5 rounded text-[0.85em] font-mono break-all'>
 								{children}
 							</code>
 						);

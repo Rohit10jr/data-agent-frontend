@@ -39,13 +39,13 @@ export function TextBubble({ role, text }: { role: ChatRole; text: string }) {
 	const isUser = role === 'user';
 	if (isUser) {
 		return (
-			<div className='rounded-lg px-4 py-2 text-sm whitespace-pre-wrap bg-primary text-primary-foreground max-w-2xl'>
+			<div className='rounded-lg px-4 py-2 text-sm whitespace-pre-wrap break-words bg-primary text-primary-foreground max-w-2xl'>
 				{text}
 			</div>
 		);
 	}
 	return (
-		<div className='rounded-lg px-4 py-2 bg-sidebar-accent'>
+		<div className='rounded-lg px-4 py-2 bg-sidebar-accent min-w-0 overflow-hidden'>
 			<MarkdownText text={text} />
 		</div>
 	);
