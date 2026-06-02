@@ -84,7 +84,9 @@ export function ChatComposer({
 	const effectivePlaceholder =
 		agent === 'schema'
 			? 'Describe the app or database you want to design…'
-			: placeholder;
+			: connectionPickerVisible && !connectionId
+				? 'Select a database to start a conversation.'
+				: placeholder;
 
 	return (
 		<form onSubmit={handleSubmit} className='border-t border-border bg-background p-3'>
@@ -137,11 +139,6 @@ export function ChatComposer({
 					)}
 				</div>
 			</div>
-			{connectionPickerVisible && !connectionId && (
-				<p className='max-w-3xl mx-auto pt-2 text-xs text-center text-muted-foreground'>
-					Select a database to start a conversation.
-				</p>
-			)}
 		</form>
 	);
 }
