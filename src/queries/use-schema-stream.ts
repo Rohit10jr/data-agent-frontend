@@ -349,6 +349,17 @@ export function useSchemaStream({ slug }: UseSchemaStreamOptions = {}) {
 		};
 	}, [slug]);
 
+	// Clear any stale `streamError` from a previously-viewed project when the
+	// slug changes. The store is a singleton (so live state can survive the
+	// home → /schema/<slug> navigation), but that means an error set while
+	// viewing project A would otherwise still be in the store when the user
+	// clicks project B in the sidebar. Live turn data is intentionally NOT
+	// cleared here — it's needed for the home-page-initiated stream to keep
+	// surfacing in the freshly-mounted SchemaViewer.
+	useEffect(() => {
+		schemaStreamStore.patch({ streamError: undefined });
+	}, [slug]);
+
 	return {
 		...state,
 		sendMessage,

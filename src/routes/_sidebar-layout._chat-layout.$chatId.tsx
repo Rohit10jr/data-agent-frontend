@@ -29,11 +29,25 @@ function parseChartContent(content: string): unknown | null {
 }
 
 export const Route = createFileRoute('/_sidebar-layout/_chat-layout/$chatId')({
-	component: ChatDetailPage,
+	component: ChatDetailPageRoute,
 });
 
-function ChatDetailPage() {
+/**
+ * Thin wrapper that forces a full remount of the chat page whenever `chatId`
+ * changes. Without this, the same component instance is reused across sidebar
+ * navigations and every `useState` inside `useChatStream` (streamError,
+ * liveUser, liveAssistant, isStreaming, abortRef, runIdRef) bleeds between
+ * sessions — the prior chat's error banner shows on a different chat, an
+ * in-flight stream from chat A stays attached when the user lands on chat B,
+ * etc. The `key` triggers unmount → all cleanup effects run (including the
+ * abort-on-unmount that stops the previous stream cleanly) → fresh mount.
+ */
+function ChatDetailPageRoute() {
 	const { chatId } = Route.useParams();
+	return <ChatDetailPage key={chatId} chatId={chatId} />;
+}
+
+function ChatDetailPage({ chatId }: { chatId: string }) {
 	const { messages, sendMessage, abort, isStreaming, isLoading, error, streamError } = useChatStream({
 		threadId: chatId,
 	});
